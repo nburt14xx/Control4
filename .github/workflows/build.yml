@@ -42,3 +42,36 @@ jobs:
         with:
           name: shield-bridge-apk
           path: shield-bridge/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    name: Publish downloadable build
+    needs: [driver, app]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: shield_bridge-c4z
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: shield-bridge-apk
+          path: out
+      - name: Rename for the release page
+        run: |
+          mv out/app-debug.apk out/shield-bridge.apk
+          ls -la out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }} (${{ github.ref_name }})
+          prerelease: true
+          body: |
+            Automated build of commit ${{ github.sha }} on `${{ github.ref_name }}`.
+
+            - `shield-bridge.apk`: sideload on the NVIDIA Shield (`adb install -r shield-bridge.apk`)
+            - `shield_bridge.c4z`: add in Composer Pro via Driver > Add or Update Driver or Agent
+          files: |
+            out/shield-bridge.apk
+            out/shield_bridge.c4z
