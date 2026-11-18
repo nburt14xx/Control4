@@ -1,0 +1,721 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devicedata>
+  <copyright>Open source, MIT licensed. See the repository README.</copyright>
+  <creator>Shield Bridge project</creator>
+  <manufacturer>NVIDIA</manufacturer>
+  <name>Shield Bridge</name>
+  <model>Shield TV - Continue Watching</model>
+  <created>11/18/2025 12:00 AM</created>
+  <modified>11/18/2025 12:00 AM</modified>
+  <version>1</version>
+  <control>lua_gen</control>
+  <controlmethod>ip</controlmethod>
+  <driver>DriverWorks</driver>
+  <small image_source="c4z">icons/device_sm.png</small>
+  <large image_source="c4z">icons/device_lg.png</large>
+  <composer_categories>
+    <category>Audio/Video</category>
+  </composer_categories>
+  <config>
+    <script file="driver.lua" />
+    <documentation file="www/documentation/index.html" />
+    <properties>
+      <property>
+        <name>Bridge</name>
+        <type>LABEL</type>
+        <default>Bridge</default>
+      </property>
+      <property>
+        <name>Bridge Address</name>
+        <type>STRING</type>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>IP address (or host:port) of the Shield running the Shield Bridge app. Port defaults to 8765.</tooltip>
+      </property>
+      <property>
+        <name>API Key</name>
+        <type>STRING</type>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>Only needed if 'Require API key' was switched on in the Shield Bridge app.</tooltip>
+      </property>
+      <property>
+        <name>Shield MAC Address</name>
+        <type>STRING</type>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>Used for Wake-on-LAN before launching. Shown in the Shield under Settings &gt; Device Preferences &gt; About &gt; Status.</tooltip>
+      </property>
+      <property>
+        <name>Bridge Status</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Behaviour</name>
+        <type>LABEL</type>
+        <default>Behaviour</default>
+      </property>
+      <property>
+        <name>Wake on Select</name>
+        <type>LIST</type>
+        <items>
+          <item>On</item>
+          <item>Off</item>
+        </items>
+        <default>On</default>
+        <readonly>false</readonly>
+        <tooltip>Send Wake-on-LAN and a wake request to the Shield whenever this source is selected or an item is launched.</tooltip>
+      </property>
+      <property>
+        <name>Launch Delay (ms)</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>0</minimum>
+        <maximum>15000</maximum>
+        <default>0</default>
+        <readonly>false</readonly>
+        <tooltip>Wait this long after selecting the room source before telling the Shield to launch, so a TV that is still warming up does not miss the opening.</tooltip>
+      </property>
+      <property>
+        <name>After Launch</name>
+        <type>LIST</type>
+        <items>
+          <item>Go to Now Playing</item>
+          <item>Stay on list</item>
+        </items>
+        <default>Go to Now Playing</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Forward Remote Commands</name>
+        <type>LIST</type>
+        <items>
+          <item>To device on Video In</item>
+          <item>Off</item>
+        </items>
+        <default>To device on Video In</default>
+        <readonly>false</readonly>
+        <tooltip>Transport and navigation buttons pressed while this source is selected are passed to the driver bound to the Video In connection (your existing Shield control driver).</tooltip>
+      </property>
+      <property>
+        <name>Lists</name>
+        <type>LABEL</type>
+        <default>Lists</default>
+      </property>
+      <property>
+        <name>Rows</name>
+        <type>LIST</type>
+        <items>
+          <item>Continue + Up Next + New</item>
+          <item>Continue Watching only</item>
+          <item>Everything</item>
+        </items>
+        <default>Continue + Up Next + New</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Max Items</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>5</minimum>
+        <maximum>200</maximum>
+        <default>40</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Refresh Interval (s)</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>0</minimum>
+        <maximum>3600</maximum>
+        <default>60</default>
+        <readonly>false</readonly>
+        <tooltip>How often the driver refreshes its cached list for programming (keypad buttons). 0 disables background refresh.</tooltip>
+      </property>
+      <property>
+        <name>Driver</name>
+        <type>LABEL</type>
+        <default>Driver</default>
+      </property>
+      <property>
+        <name>Debug Mode</name>
+        <type>LIST</type>
+        <items>
+          <item>Off</item>
+          <item>On</item>
+        </items>
+        <default>Off</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Driver Version</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+    </properties>
+    <commands>
+      <command>
+        <name>Resume Latest</name>
+        <description>Resume the most recently watched show on NAME (optionally selecting it in PARAM1)</description>
+        <params>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Launch Item</name>
+        <description>Launch PARAM1 on NAME (optionally selecting it in PARAM2)</description>
+        <params>
+          <param>
+            <name>Item</name>
+            <type>CUSTOM_SELECT:ContinueSelect</type>
+          </param>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Launch App</name>
+        <description>Launch app PARAM1 on NAME (optionally selecting it in PARAM2)</description>
+        <params>
+          <param>
+            <name>App</name>
+            <type>CUSTOM_SELECT:AppSelect</type>
+          </param>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Launch URL</name>
+        <description>Open deep link PARAM1 on NAME (optionally selecting it in PARAM2)</description>
+        <params>
+          <param>
+            <name>URL</name>
+            <type>STRING</type>
+          </param>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Wake Shield</name>
+        <description>Send Wake-on-LAN to NAME</description>
+      </command>
+      <command>
+        <name>Refresh</name>
+        <description>Refresh the Continue Watching and app lists on NAME</description>
+      </command>
+    </commands>
+    <actions>
+      <action>
+        <name>Test Connection</name>
+        <command>Test Connection</command>
+      </action>
+      <action>
+        <name>Refresh Lists</name>
+        <command>Refresh</command>
+      </action>
+      <action>
+        <name>Wake Shield</name>
+        <command>Wake Shield</command>
+      </action>
+      <action>
+        <name>Resume Latest</name>
+        <command>Resume Latest</command>
+      </action>
+    </actions>
+  </config>
+  <capabilities>
+    <hide_in_media>True</hide_in_media>
+    <video_provider_count>1</video_provider_count>
+    <digital_audio_support>False</digital_audio_support>
+    <ui_selects_device>True</ui_selects_device>
+    <list_nowplaying_non_c4>True</list_nowplaying_non_c4>
+    <navigator_display_option proxybindingid="5001">
+      <display_icons>
+        <Icon width="70" height="70">controller://driver/shield_bridge/icons/device/experience_70.png</Icon>
+        <Icon width="90" height="90">controller://driver/shield_bridge/icons/device/experience_90.png</Icon>
+        <Icon width="300" height="300">controller://driver/shield_bridge/icons/device/experience_300.png</Icon>
+        <Icon width="512" height="512">controller://driver/shield_bridge/icons/device/experience_512.png</Icon>
+        <Icon width="1024" height="1024">controller://driver/shield_bridge/icons/device/experience_1024.png</Icon>
+      </display_icons>
+    </navigator_display_option>
+    <UI xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" proxybindingid="5001">
+      <DeviceIcon>device</DeviceIcon>
+      <BrandingIcon>branding</BrandingIcon>
+      <Icons>
+        <IconGroup id="branding">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/branding/branding_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/branding/branding_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/branding/branding_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/branding/branding_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/branding/branding_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/branding/branding_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/branding/branding_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/branding/branding_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/branding/branding_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/branding/branding_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/branding/branding_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/branding/branding_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/branding/branding_140.png</Icon>
+          <Icon width="150" height="150">controller://driver/shield_bridge/icons/branding/branding_150.png</Icon>
+          <Icon width="300" height="300">controller://driver/shield_bridge/icons/branding/branding_300.png</Icon>
+          <Icon width="400" height="400">controller://driver/shield_bridge/icons/branding/branding_400.png</Icon>
+        </IconGroup>
+        <IconGroup id="device">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/device/device_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/device/device_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/device/device_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/device/device_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/device/device_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/device/device_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/device/device_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/device/device_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/device/device_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/device/device_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/device/device_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/device/device_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/device/device_140.png</Icon>
+          <Icon width="150" height="150">controller://driver/shield_bridge/icons/device/device_150.png</Icon>
+          <Icon width="300" height="300">controller://driver/shield_bridge/icons/device/device_300.png</Icon>
+          <Icon width="400" height="400">controller://driver/shield_bridge/icons/device/device_400.png</Icon>
+          <Icon width="512" height="512">controller://driver/shield_bridge/icons/device/device_512.png</Icon>
+          <Icon width="1024" height="1024">controller://driver/shield_bridge/icons/device/device_1024.png</Icon>
+        </IconGroup>
+        <IconGroup id="tab_continue">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/tab_continue/tab_continue_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/tab_continue/tab_continue_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/tab_continue/tab_continue_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/tab_continue/tab_continue_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/tab_continue/tab_continue_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/tab_continue/tab_continue_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/tab_continue/tab_continue_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/tab_continue/tab_continue_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/tab_continue/tab_continue_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/tab_continue/tab_continue_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/tab_continue/tab_continue_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/tab_continue/tab_continue_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/tab_continue/tab_continue_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="tab_apps">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/tab_apps/tab_apps_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/tab_apps/tab_apps_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/tab_apps/tab_apps_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/tab_apps/tab_apps_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/tab_apps/tab_apps_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/tab_apps/tab_apps_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/tab_apps/tab_apps_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/tab_apps/tab_apps_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/tab_apps/tab_apps_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/tab_apps/tab_apps_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/tab_apps/tab_apps_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/tab_apps/tab_apps_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/tab_apps/tab_apps_140.png</Icon>
+        </IconGroup>
+      </Icons>
+      <Tabs>
+        <Tab>
+          <Id>Continue</Id>
+          <Name>Continue Watching</Name>
+          <IconId>tab_continue</IconId>
+          <ScreenId>ContinueScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Apps</Id>
+          <Name>Apps</Name>
+          <IconId>tab_apps</IconId>
+          <ScreenId>AppsScreen</ScreenId>
+        </Tab>
+      </Tabs>
+      <Screens>
+        <Screen xsi:type="ListScreenType">
+          <Id>ContinueScreen</Id>
+          <DataCommand>
+            <Name>GetContinue</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>screenDepth</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenDepth</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>title</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>title</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <DefaultAction>LaunchItem</DefaultAction>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>AppsScreen</Id>
+          <DataCommand>
+            <Name>GetApps</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>screenDepth</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenDepth</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>title</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>title</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <DefaultAction>LaunchApp</DefaultAction>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+      </Screens>
+      <NowPlaying>
+        <ActionIdsProperty>actions_list</ActionIdsProperty>
+        <List>
+          <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+          <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+          <TitleProperty>title</TitleProperty>
+          <SubTitleProperty>subtitle</SubTitleProperty>
+          <ImageProperty>image_list</ImageProperty>
+          <LengthProperty>duration</LengthProperty>
+          <IsHeader>
+            <Property>isHeader</Property>
+            <ValidValues>
+              <Value>true</Value>
+            </ValidValues>
+          </IsHeader>
+        </List>
+      </NowPlaying>
+      <FavoriteCommand>
+        <Name>jumpToFavorite</Name>
+        <Type>PROTOCOL</Type>
+        <Params>
+          <Param>
+            <Name>id</Name>
+            <Type>FIRST_SELECTED</Type>
+            <Value>favoriteId</Value>
+          </Param>
+        </Params>
+      </FavoriteCommand>
+      <Actions>
+        <Action>
+          <Id>LaunchItem</Id>
+          <Name>Resume</Name>
+          <Command>
+            <Name>LaunchItem</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>screenDepth</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenDepth</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>title</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>title</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>LaunchApp</Id>
+          <Name>Open App</Name>
+          <Command>
+            <Name>LaunchApp</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>screenDepth</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenDepth</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>title</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>title</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>FavoriteToRoom</Id>
+          <Name>Add to Room Favorites</Name>
+          <Command>
+            <Name>FavoriteToRoom</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+          <GeneratesRoomFavorite>true</GeneratesRoomFavorite>
+        </Action>
+      </Actions>
+      <Dashboard>
+        <Transport>
+          <Id>Play</Id>
+          <ButtonType>PLAY</ButtonType>
+          <ReleaseCommand>
+            <Name>PLAY</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Pause</Id>
+          <ButtonType>PAUSE</ButtonType>
+          <ReleaseCommand>
+            <Name>PAUSE</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Stop</Id>
+          <ButtonType>STOP</ButtonType>
+          <ReleaseCommand>
+            <Name>STOP</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>SkipRev</Id>
+          <ButtonType>SKIP_REV</ButtonType>
+          <ReleaseCommand>
+            <Name>SKIP_REV</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>SkipFwd</Id>
+          <ButtonType>SKIP_FWD</ButtonType>
+          <ReleaseCommand>
+            <Name>SKIP_FWD</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+      </Dashboard>
+    </UI>
+  </capabilities>
+  <events>
+    <event>
+      <id>1</id>
+      <name>Item Launched</name>
+      <description>NAME launched a show or app on the Shield</description>
+    </event>
+    <event>
+      <id>2</id>
+      <name>Bridge Online</name>
+      <description>NAME reached the Shield Bridge app</description>
+    </event>
+    <event>
+      <id>3</id>
+      <name>Bridge Offline</name>
+      <description>NAME lost contact with the Shield Bridge app</description>
+    </event>
+  </events>
+  <proxies qty="1">
+    <proxy proxybindingid="5001" name="Shield Bridge" primary="True" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_service</proxy>
+  </proxies>
+  <connections>
+    <connection>
+      <id>5001</id>
+      <type>2</type>
+      <connectionname>Shield Bridge</connectionname>
+      <consumer>false</consumer>
+      <linelevel>false</linelevel>
+      <classes>
+        <class>
+          <classname>MediaService</classname>
+        </class>
+      </classes>
+    </connection>
+    <!-- The Shield's own driver (IP, IR or CEC) plugs into these inputs... -->
+    <connection proxybindingid="5001">
+      <id>1001</id>
+      <type>5</type>
+      <connectionname>Video In (from Shield)</connectionname>
+      <consumer>True</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>HDMI</classname>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5001">
+      <id>3001</id>
+      <type>6</type>
+      <connectionname>Audio In (from Shield)</connectionname>
+      <consumer>True</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>STEREO</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_COAX</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_OPTICAL</classname>
+        </class>
+      </classes>
+    </connection>
+    <!-- ...and these outputs go to the TV / AVR input the Shield used to be bound to. -->
+    <connection proxybindingid="5001">
+      <id>2001</id>
+      <type>5</type>
+      <connectionname>Video Out (to TV or AVR)</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>HDMI</classname>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5001">
+      <id>4001</id>
+      <type>6</type>
+      <connectionname>Audio Out (to TV or AVR)</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>STEREO</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_COAX</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_OPTICAL</classname>
+        </class>
+      </classes>
+    </connection>
+  </connections>
+</devicedata>

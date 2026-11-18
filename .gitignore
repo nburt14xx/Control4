@@ -1,0 +1,16 @@
+# build outputs
+dist/
+shield-bridge/build/
+shield-bridge/app/build/
+shield-bridge/.gradle/
+shield-bridge/.kotlin/
+shield-bridge/local.properties
+shield-bridge/.idea/
+*.iml
+*.apk
+*.aab
+
+# editors / OS
+.DS_Store
+.vscode/
+__pycache__/

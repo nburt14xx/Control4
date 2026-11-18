@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shield Bridge driver</title>
+<style>
+  body { font-family: Segoe UI, Arial, sans-serif; max-width: 820px; margin: 24px auto; line-height: 1.45; color: #222; }
+  h1, h2 { color: #123; }
+  code, pre { background: #f3f5f7; padding: 2px 5px; border-radius: 4px; }
+  pre { padding: 10px; overflow-x: auto; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #ccd; padding: 6px 10px; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<h1>Shield Bridge</h1>
+<p>Shows the NVIDIA Shield's <em>Continue Watching</em> list (Netflix, Prime Video, Disney+, Max, Hulu and every other app that publishes to Android TV's Watch Next row) inside Navigator, and resumes the selected show with one tap. Needs the free <strong>Shield Bridge</strong> app installed on the Shield.</p>
+
+<h2>1. Shield side</h2>
+<ol>
+  <li>Install the Shield Bridge APK on the Shield (sideload with adb or a file manager).</li>
+  <li>Open it. Press <strong>Grant 'TV listings' permission</strong> and accept. Press <strong>Allow 'Display over other apps'</strong> and enable it. If a screen does not open on this device, run from a PC with adb connected to the Shield:
+    <pre>adb shell pm grant dev.shieldbridge android.permission.READ_TV_LISTINGS
+adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
+  <li>Press <strong>Test: read Continue Watching</strong>. It should list what has recently been watched on the box.</li>
+  <li>Note the address shown (for example <code>http://192.168.1.50:8765</code>). Give the Shield a DHCP reservation.</li>
+</ol>
+
+<h2>2. Composer</h2>
+<ol>
+  <li>Add the <em>Shield Bridge</em> driver to the room that has the Shield.</li>
+  <li><strong>Connections</strong>: the driver sits between the Shield and the display.
+    <ul>
+      <li>Unbind the Shield driver's HDMI output from the TV/AVR input.</li>
+      <li>Bind the Shield driver's HDMI output to Shield Bridge <em>Video In (from Shield)</em>.</li>
+      <li>Bind Shield Bridge <em>Video Out</em> to the TV/AVR input the Shield used.</li>
+      <li>Do the same with the audio connections if the Shield's audio was bound separately.</li>
+    </ul>
+    Both the Shield and Shield Bridge then appear under Watch. Selecting either powers the same path.</li>
+  <li><strong>Properties</strong>: set <em>Bridge Address</em> (IP or host:port) and, for Wake-on-LAN, <em>Shield MAC Address</em>. Set <em>API Key</em> only if you turned that on in the app.</li>
+  <li><strong>Actions &gt; Test Connection</strong> and read the Lua output: it reports the app version and whether both permissions are granted.</li>
+  <li>Refresh Navigators.</li>
+</ol>
+
+<h2>3. Using it</h2>
+<ul>
+  <li>Watch &gt; Shield Bridge &gt; <em>Continue Watching</em>. Tap a show: the room switches to the Shield and the show resumes where it left off.</li>
+  <li>Press and hold (or use the item menu) &gt; <em>Add to Room Favorites</em> to put a show on the room's home screen.</li>
+  <li><em>Apps</em> tab opens any installed TV app.</li>
+  <li>Remote and transport buttons are forwarded to the driver bound to Video In, so your existing Shield control keeps working while Shield Bridge is the selected source.</li>
+</ul>
+
+<h2>4. Programming</h2>
+<table>
+  <tr><th>Command</th><th>What it does</th></tr>
+  <tr><td>Resume Latest</td><td>Refreshes the list and resumes the most recently watched item. Optional Room parameter selects the source in that room first. Ideal for a keypad button.</td></tr>
+  <tr><td>Launch Item</td><td>Launches a specific Continue Watching row (list filled from the cached list).</td></tr>
+  <tr><td>Launch App</td><td>Opens an installed TV app.</td></tr>
+  <tr><td>Launch URL</td><td>Opens a deep link, e.g. <code>https://www.netflix.com/title/80057281?source=30</code>.</td></tr>
+  <tr><td>Wake Shield</td><td>Wake-on-LAN plus a wake request to the app.</td></tr>
+</table>
+<p>Events: <em>Item Launched</em>, <em>Bridge Online</em>, <em>Bridge Offline</em>. Variables: <code>LAST_LAUNCHED_TITLE</code>, <code>LAST_LAUNCHED_APP</code>, <code>BRIDGE_ONLINE</code>.</p>
+
+<h2>5. Properties</h2>
+<table>
+  <tr><th>Property</th><th>Meaning</th></tr>
+  <tr><td>Wake on Select</td><td>Send Wake-on-LAN and a wake request when the source is selected or an item launched.</td></tr>
+  <tr><td>Launch Delay (ms)</td><td>Wait after selecting the room source before launching, for slow TVs.</td></tr>
+  <tr><td>After Launch</td><td>Jump to Now Playing or stay on the list after a launch.</td></tr>
+  <tr><td>Forward Remote Commands</td><td>Pass remote buttons to the driver on Video In, or not.</td></tr>
+  <tr><td>Rows</td><td>Which Watch Next row types to show.</td></tr>
+  <tr><td>Refresh Interval (s)</td><td>Background refresh of the cached list used by programming.</td></tr>
+</table>
+
+<h2>6. Troubleshooting</h2>
+<ul>
+  <li><em>Bridge Status</em> says Offline: check the address, that the app's service is running (open the app), and that the controller can reach the Shield's port 8765.</li>
+  <li>List is empty: the TV listings permission is not granted, or nothing has been watched since. Check with the app's Test button.</li>
+  <li>Tap does nothing on the Shield: 'Display over other apps' is not granted. Launches only work from the background with it.</li>
+  <li>A show opens on its detail page instead of playing: that app does not follow Google's resume guideline; press Play once.</li>
+  <li>Turn on <em>Debug Mode</em> and watch the Lua output for the HTTP traffic.</li>
+</ul>
+</body>
+</html>
