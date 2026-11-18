@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.3"
+DRIVER_VERSION = "0.1.4"
 
 MSP_PROXY = 5001          -- media_service proxy binding
 VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
@@ -600,7 +600,7 @@ end
 function SelectInRoom(roomId)
 	roomId = tonumber(roomId)
 	if (not roomId or roomId == 0) then return end
-	local mode = Properties['Select Room Source'] or 'Select Shield'
+	local mode = Properties['Select Room Source'] or 'Never'
 	if (mode == 'Never') then return end
 
 	-- By default the room is pointed at the Shield itself (the device wired into
@@ -932,6 +932,15 @@ function RFP.jumpToFavorite(tParams, args, idBinding)
 	end
 end
 
+-- Opens the Shield's own home screen (its native UI) with no room or power
+-- command, so it never disturbs a projector on an IR power toggle.
+function RFP.HOME(tParams, args, idBinding)
+	local homeIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end'
+	BridgeRequest('POST', '/api/launch?intentUri=' .. URLEncode(homeIntent), { intentUri = homeIntent }, function(err)
+		if (err) then print('Shield Bridge: Home failed: ' .. tostring(err)) end
+	end)
+end
+
 function RFP.GetDashboard(tParams, args, idBinding)
 	UpdateDashboard(tParams.NAVID, tParams.ROOMID)
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
@@ -1177,6 +1186,15 @@ function OnDriverLateInit()
 	C4:AddVariable('LAST_LAUNCHED_APP', '', 'STRING', true, false)
 	C4:AddVariable('BRIDGE_ONLINE', 'false', 'STRING', true, false)
 	C4:UpdateProperty('Driver Version', DRIVER_VERSION)
+	-- One-time safety reset: an existing instance keeps its stored property
+	-- values on update, so force the no-power behaviour once. The installer can
+	-- re-enable room power afterwards in Properties.
+	if (not PersistData.powerSafeApplied) then
+		C4:UpdateProperty('Select Room Source', 'Never')
+		C4:UpdateProperty('Wake on Select', 'Off')
+		PersistData.powerSafeApplied = true
+		print('Shield Bridge: configured to send no room power commands (Select Room Source = Never, Wake on Select = Off). Change these in Properties to let the driver power the room.')
+	end
 	for name, _ in pairs(Properties) do
 		OnPropertyChanged(name)
 	end

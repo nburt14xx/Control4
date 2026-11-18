@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>4</version>
+  <version>5</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -64,7 +64,7 @@
           <item>On</item>
           <item>Off</item>
         </items>
-        <default>On</default>
+        <default>Off</default>
         <readonly>false</readonly>
         <tooltip>Send Wake-on-LAN and a wake request to the Shield whenever this source is selected or an item is launched.</tooltip>
       </property>
@@ -72,11 +72,11 @@
         <name>Select Room Source</name>
         <type>LIST</type>
         <items>
+          <item>Never</item>
           <item>Select Shield</item>
           <item>Select Shield Bridge</item>
-          <item>Never</item>
         </items>
-        <default>Select Shield</default>
+        <default>Never</default>
         <readonly>false</readonly>
         <tooltip>What a launch selects as the room's video source for power. "Select Shield" (default) points the room at the Shield wired into Video In, so power behaves exactly as it does for the Shield normally. "Select Shield Bridge" selects this driver instead. "Never" sends nothing, leaving room power to you. The command is skipped when the room is already on the target source.</tooltip>
       </property>
@@ -333,6 +333,126 @@
           <Icon width="130" height="130">controller://driver/shield_bridge/icons/tab_apps/tab_apps_130.png</Icon>
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/tab_apps/tab_apps_140.png</Icon>
         </IconGroup>
+        <IconGroup id="nav_up">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_up/nav_up_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_up/nav_up_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_up/nav_up_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_up/nav_up_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_up/nav_up_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_up/nav_up_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_up/nav_up_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_up/nav_up_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_up/nav_up_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_up/nav_up_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_up/nav_up_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_up/nav_up_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_up/nav_up_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_down">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_down/nav_down_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_down/nav_down_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_down/nav_down_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_down/nav_down_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_down/nav_down_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_down/nav_down_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_down/nav_down_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_down/nav_down_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_down/nav_down_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_down/nav_down_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_down/nav_down_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_down/nav_down_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_down/nav_down_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_left">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_left/nav_left_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_left/nav_left_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_left/nav_left_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_left/nav_left_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_left/nav_left_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_left/nav_left_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_left/nav_left_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_left/nav_left_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_left/nav_left_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_left/nav_left_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_left/nav_left_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_left/nav_left_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_left/nav_left_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_right">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_right/nav_right_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_right/nav_right_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_right/nav_right_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_right/nav_right_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_right/nav_right_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_right/nav_right_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_right/nav_right_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_right/nav_right_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_right/nav_right_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_right/nav_right_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_right/nav_right_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_right/nav_right_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_right/nav_right_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_ok">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_ok/nav_ok_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_ok/nav_ok_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_ok/nav_ok_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_ok/nav_ok_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_ok/nav_ok_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_ok/nav_ok_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_ok/nav_ok_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_ok/nav_ok_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_ok/nav_ok_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_ok/nav_ok_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_ok/nav_ok_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_ok/nav_ok_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_ok/nav_ok_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_back">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_back/nav_back_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_back/nav_back_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_back/nav_back_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_back/nav_back_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_back/nav_back_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_back/nav_back_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_back/nav_back_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_back/nav_back_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_back/nav_back_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_back/nav_back_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_back/nav_back_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_back/nav_back_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_back/nav_back_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_home">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_home/nav_home_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_home/nav_home_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_home/nav_home_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_home/nav_home_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_home/nav_home_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_home/nav_home_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_home/nav_home_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_home/nav_home_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_home/nav_home_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_home/nav_home_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_home/nav_home_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_home/nav_home_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_home/nav_home_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_playpause">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_140.png</Icon>
+        </IconGroup>
       </Icons>
       <Tabs>
         <Tab>
@@ -465,6 +585,7 @@
         </Screen>
       </Screens>
       <NowPlaying>
+        <ActionIds>NavUp NavDown NavLeft NavRight NavOk NavBack NavHome</ActionIds>
         <ActionIdsProperty>actions_list</ActionIdsProperty>
         <List>
           <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
@@ -588,6 +709,69 @@
             </Params>
           </Command>
           <GeneratesRoomFavorite>true</GeneratesRoomFavorite>
+        </Action>
+        <Action>
+          <Id>NavUp</Id>
+          <Name>Up</Name>
+          <IconId>nav_up</IconId>
+          <Command>
+            <Name>UP</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavDown</Id>
+          <Name>Down</Name>
+          <IconId>nav_down</IconId>
+          <Command>
+            <Name>DOWN</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavLeft</Id>
+          <Name>Left</Name>
+          <IconId>nav_left</IconId>
+          <Command>
+            <Name>LEFT</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavRight</Id>
+          <Name>Right</Name>
+          <IconId>nav_right</IconId>
+          <Command>
+            <Name>RIGHT</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavOk</Id>
+          <Name>OK</Name>
+          <IconId>nav_ok</IconId>
+          <Command>
+            <Name>ENTER</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavBack</Id>
+          <Name>Back</Name>
+          <IconId>nav_back</IconId>
+          <Command>
+            <Name>CANCEL</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavHome</Id>
+          <Name>Home</Name>
+          <IconId>nav_home</IconId>
+          <Command>
+            <Name>HOME</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
         </Action>
       </Actions>
       <Dashboard>

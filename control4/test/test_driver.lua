@@ -23,6 +23,7 @@ Properties = {
 stub.properties = Properties
 
 dofile('control4/shield_bridge/driver.lua')
+PersistData.powerSafeApplied = true
 
 local passed, failed = 0, 0
 local function check(cond, msg)
@@ -355,6 +356,33 @@ eq(RowTypesParam(), '', 'rows: everything')
 before = #stub.proxyMessages
 ReceivedFromProxy(5001, 'SomethingNew', { NAVID = 'nav1', SEQ = '99' })
 eq(stub.proxyMessages[#stub.proxyMessages].params.SEQ, '99', 'unknown nav command gets an empty reply')
+
+------------------------------------------------------------------ Home opens the Shield UI with no room command
+local selBefore = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then selBefore = selBefore + 1 end end
+ReceivedFromProxy(5001, 'HOME', { NAVID = 'navH', SEQ = '40', ROOMID = '12' })
+local homeReq
+for _, r in ipairs(stub.urlRequests) do if (r.url:find('/api/launch', 1, true) and r.url:find('category.HOME', 1, true)) then homeReq = r end end
+check(homeReq ~= nil, 'Home posts a launcher intent to the bridge')
+local selAfter = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then selAfter = selAfter + 1 end end
+eq(selAfter, selBefore, 'Home sends no room select / power command')
+drain()
+
+------------------------------------------------------------------ one-time power-safe migration
+PersistData.powerSafeApplied = nil
+Properties['Select Room Source'] = 'Select Shield Bridge'
+Properties['Wake on Select'] = 'On'
+OnDriverLateInit()
+drain()
+eq(Properties['Select Room Source'], 'Never', 'migration forces Select Room Source = Never')
+eq(Properties['Wake on Select'], 'Off', 'migration forces Wake on Select = Off')
+check(PersistData.powerSafeApplied == true, 'migration marks itself done')
+-- runs only once: changing back is respected on the next init
+Properties['Select Room Source'] = 'Select Shield'
+OnDriverLateInit()
+drain()
+eq(Properties['Select Room Source'], 'Select Shield', 'migration does not run twice')
 
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end

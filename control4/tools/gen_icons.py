@@ -95,6 +95,46 @@ def tab_apps(size):
     return finish(img, size)
 
 
+def nav_glyph(size, kind):
+    """White control glyph on a transparent background, tinted by the UI."""
+    s = size * 4
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx = cy = s / 2
+    r = s * 0.3
+    if kind in ("up", "down", "left", "right"):
+        if kind == "up":
+            pts = [(cx, cy - r), (cx - r, cy + r * 0.7), (cx + r, cy + r * 0.7)]
+        elif kind == "down":
+            pts = [(cx, cy + r), (cx - r, cy - r * 0.7), (cx + r, cy - r * 0.7)]
+        elif kind == "left":
+            pts = [(cx - r, cy), (cx + r * 0.7, cy - r), (cx + r * 0.7, cy + r)]
+        else:
+            pts = [(cx + r, cy), (cx - r * 0.7, cy - r), (cx - r * 0.7, cy + r)]
+        d.polygon(pts, fill=WHITE)
+    elif kind == "ok":
+        w = max(2, int(s * 0.08))
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=WHITE, width=w)
+        d.ellipse([cx - r * 0.42, cy - r * 0.42, cx + r * 0.42, cy + r * 0.42], fill=WHITE)
+    elif kind == "back":
+        w = max(2, int(s * 0.1))
+        # curved arrow pointing left
+        d.arc([cx - r, cy - r, cx + r, cy + r], start=80, end=330, fill=WHITE, width=w)
+        hx, hy = cx - r * 0.1, cy - r * 0.95
+        d.polygon([(hx - s * 0.08, hy), (hx + s * 0.06, hy - s * 0.1), (hx + s * 0.06, hy + s * 0.1)], fill=WHITE)
+    elif kind == "home":
+        # simple house
+        d.polygon([(cx, cy - r), (cx - r, cy), (cx + r, cy)], fill=WHITE)
+        d.rectangle([cx - r * 0.65, cy - r * 0.1, cx + r * 0.65, cy + r * 0.75], fill=WHITE)
+    elif kind == "playpause":
+        # play triangle + pause bars, side by side
+        d.polygon([(cx - r, cy - r * 0.7), (cx - r, cy + r * 0.7), (cx - r * 0.1, cy)], fill=WHITE)
+        bw = r * 0.22
+        d.rectangle([cx + r * 0.25, cy - r * 0.7, cx + r * 0.25 + bw, cy + r * 0.7], fill=WHITE)
+        d.rectangle([cx + r * 0.6, cy - r * 0.7, cx + r * 0.6 + bw, cy + r * 0.7], fill=WHITE)
+    return finish(img, size)
+
+
 def save(img, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, "PNG", optimize=True)
@@ -112,6 +152,12 @@ def main():
         save(tab_apps(sz), os.path.join(DRIVER_ICONS, "tab_apps", f"tab_apps_{sz}.png"))
     save(device_icon(32), os.path.join(DRIVER_ICONS, "device_sm.png"))
     save(device_icon(64), os.path.join(DRIVER_ICONS, "device_lg.png"))
+
+    # On-screen control glyphs for the Now Playing remote
+    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause"):
+        name = "nav_" + kind
+        for sz in TAB_SIZES:
+            save(nav_glyph(sz, kind), os.path.join(DRIVER_ICONS, name, f"{name}_{sz}.png"))
 
     # Android app resources
     save(device_icon(192), os.path.join(APP_RES, "mipmap", "ic_launcher.png"))
