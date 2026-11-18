@@ -150,6 +150,10 @@ function C4:ErrorLog(s) record("ErrorLog", s) end
 function C4:RegisterVariableListener() end
 function C4:UnregisterVariableListener() end
 function C4:GetDevicesByC4iName() return {} end
-function C4:GetDeviceVariable() return 0 end
+stub.roomDevice = {}            -- [roomId] = proxy device id currently selected
+function C4:GetDeviceVariable(deviceId, idVariable)
+	if (idVariable == 1000) then return stub.roomDevice[tonumber(deviceId)] or 0 end
+	return 0
+end
 
 return stub

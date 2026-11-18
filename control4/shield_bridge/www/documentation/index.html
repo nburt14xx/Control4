@@ -65,6 +65,7 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
 <table>
   <tr><th>Property</th><th>Meaning</th></tr>
   <tr><td>Wake on Select</td><td>Send Wake-on-LAN and a wake request when the source is selected or an item launched.</td></tr>
+  <tr><td>Select Room Source</td><td>Whether a launch also selects this source in the room. Default skips it when the room is already on Shield Bridge, which avoids power-cycling IR-toggle displays.</td></tr>
   <tr><td>Launch Delay (ms)</td><td>Wait after selecting the room source before launching, for slow TVs.</td></tr>
   <tr><td>After Launch</td><td>Jump to Now Playing or stay on the list after a launch.</td></tr>
   <tr><td>Forward Remote Commands</td><td>Pass remote buttons to the driver on Video In, or not.</td></tr>

@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.0"
+DRIVER_VERSION = "0.1.1"
 
 MSP_PROXY = 5001          -- media_service proxy binding
 VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
@@ -577,10 +577,29 @@ function WakeShield()
 	BridgeRequest('POST', '/api/wake', {}, nil)
 end
 
+-- Room variable 1000 holds the proxy device id of the room's current source.
+function RoomCurrentDevice(roomId)
+	local ok, v = pcall(function() return C4:GetDeviceVariable(roomId, 1000) end)
+	if (ok) then return tonumber(v) end
+	return nil
+end
+
+-- Selects this driver as the room's video source, unless the room is already
+-- on it. Re-selecting an active source makes the room re-run its power-on
+-- sequence, which flips displays that only have an IR power toggle.
 function SelectInRoom(roomId)
 	roomId = tonumber(roomId)
 	if (not roomId or roomId == 0) then return end
+	local mode = Properties['Select Room Source'] or 'If not already selected'
+	if (mode == 'Never') then return end
 	local proxyId = C4:GetProxyDevices()
+	if (mode ~= 'Always') then
+		local current = RoomCurrentDevice(roomId)
+		if (current and (current == proxyId or current == C4:GetDeviceID())) then
+			dbg('room ' .. roomId .. ' already on this source; not re-selecting')
+			return
+		end
+	end
 	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> ' .. tostring(proxyId))
 	C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = proxyId })
 end

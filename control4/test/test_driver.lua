@@ -10,6 +10,7 @@ Properties = {
 	['Shield MAC Address'] = '00:04:4b:aa:bb:cc',
 	['Wake on Select'] = 'On',
 	['Launch Delay (ms)'] = '0',
+	['Select Room Source'] = 'If not already selected',
 	['Rows'] = 'Continue + Up Next + New',
 	['Max Items'] = '40',
 	['Forward Remote Commands'] = 'To device on Video In',
@@ -256,6 +257,32 @@ local sel1 = ContinueSelect()
 check(#sel1 == 3 and sel1[1].value == '101' and sel1[1].text:find('Severance', 1, true), 'custom select lists items')
 local sel2 = AppSelect()
 check(#sel2 == 1 and sel2[1].value == 'com.netflix.ninja', 'custom select lists apps')
+
+------------------------------------------------------------------ room source selection
+local function selectsSent()
+	local n = 0
+	for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then n = n + 1 end end
+	return n
+end
+stub.roomDevice[12] = stub.proxyDeviceId      -- room already on Shield Bridge
+local n0 = selectsSent()
+SelectInRoom('12')
+eq(selectsSent(), n0, 'no re-select when room already on this source')
+stub.roomDevice[12] = 555                     -- room on another source
+SelectInRoom('12')
+eq(selectsSent(), n0 + 1, 'select sent when room on another source')
+stub.roomDevice[12] = 0                       -- room off
+SelectInRoom('12')
+eq(selectsSent(), n0 + 2, 'select sent when room is off')
+Properties['Select Room Source'] = 'Never'
+SelectInRoom('12')
+eq(selectsSent(), n0 + 2, 'Never suppresses select')
+Properties['Select Room Source'] = 'Always'
+stub.roomDevice[12] = stub.proxyDeviceId
+SelectInRoom('12')
+eq(selectsSent(), n0 + 3, 'Always re-selects even when already on this source')
+Properties['Select Room Source'] = 'If not already selected'
+stub.roomDevice[12] = nil
 
 ------------------------------------------------------------------ rows property
 Properties['Rows'] = 'Continue Watching only'

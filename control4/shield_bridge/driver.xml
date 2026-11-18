@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>1</version>
+  <version>2</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -67,6 +67,18 @@
         <default>On</default>
         <readonly>false</readonly>
         <tooltip>Send Wake-on-LAN and a wake request to the Shield whenever this source is selected or an item is launched.</tooltip>
+      </property>
+      <property>
+        <name>Select Room Source</name>
+        <type>LIST</type>
+        <items>
+          <item>If not already selected</item>
+          <item>Always</item>
+          <item>Never</item>
+        </items>
+        <default>If not already selected</default>
+        <readonly>false</readonly>
+        <tooltip>Whether launching an item also selects Shield Bridge as the room's video source. The default skips the command when the room is already on this source, so displays with an IR power toggle are not cycled.</tooltip>
       </property>
       <property>
         <name>Launch Delay (ms)</name>
