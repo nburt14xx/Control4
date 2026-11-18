@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.1"
+DRIVER_VERSION = "0.1.3"
 
 MSP_PROXY = 5001          -- media_service proxy binding
 VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
@@ -82,6 +82,13 @@ function FormatSeconds(totalSeconds)
 		return string.format('%dh %02dm', h, m)
 	end
 	return string.format('%dm', m)
+end
+
+function URLEncode(s)
+	if (s == nil) then return '' end
+	s = tostring(s)
+	s = s:gsub('([^%w%-%_%.%~])', function (c) return string.format('%%%02X', string.byte(c)) end)
+	return s
 end
 
 function KillTimer(name)
@@ -347,7 +354,10 @@ function BridgeRequest(method, path, body, callback)
 		end
 		if (responseCode < 200 or responseCode >= 300) then
 			local msg = 'HTTP ' .. responseCode
-			if (type(data) == 'table' and data.error) then msg = msg .. ': ' .. tostring(data.error) end
+			if (type(data) == 'table') then
+				if (data.error) then msg = msg .. ': ' .. tostring(data.error)
+				elseif (data.message) then msg = msg .. ': ' .. tostring(data.message) end
+			end
 			if (responseCode == 0) then SetBridgeOnline(false, msg) end
 			if (callback) then callback(msg, data, responseCode) end
 			return
@@ -590,24 +600,37 @@ end
 function SelectInRoom(roomId)
 	roomId = tonumber(roomId)
 	if (not roomId or roomId == 0) then return end
-	local mode = Properties['Select Room Source'] or 'If not already selected'
+	local mode = Properties['Select Room Source'] or 'Select Shield'
 	if (mode == 'Never') then return end
-	local proxyId = C4:GetProxyDevices()
-	if (mode ~= 'Always') then
-		local current = RoomCurrentDevice(roomId)
-		if (current and (current == proxyId or current == C4:GetDeviceID())) then
-			dbg('room ' .. roomId .. ' already on this source; not re-selecting')
+
+	-- By default the room is pointed at the Shield itself (the device wired into
+	-- Video In), so the room powers up exactly the way it does for the Shield
+	-- normally. Selecting this proxy instead can re-run a room's power macro and
+	-- cycle a display that only has an IR power toggle.
+	local targetId
+	if (mode == 'Select Shield Bridge') then
+		targetId = C4:GetProxyDevices()
+	else
+		targetId = ResolveShieldDevice()
+		if (not targetId) then
+			dbg('no device bound to Video In; not selecting any source (set Select Room Source to Shield Bridge to override)')
 			return
 		end
 	end
-	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> ' .. tostring(proxyId))
-	C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = proxyId })
+
+	local current = RoomCurrentDevice(roomId)
+	if (current and current == targetId) then
+		dbg('room ' .. roomId .. ' already on target source ' .. tostring(targetId) .. '; not re-selecting')
+		return
+	end
+	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> ' .. tostring(targetId))
+	C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = targetId })
 end
 
 -- Core launch path used by Navigator actions, favorites and programming.
 -- target = { id = <watch next row id> } | { package = ... } | { url = ... } | { intentUri = ... }
 -- display = { title, subtitle, art } for Now Playing / variables.
-function LaunchOnShield(target, display, roomId)
+function LaunchOnShield(target, display, roomId, onResult)
 	SelectInRoom(roomId)
 	if ((Properties['Wake on Select'] or 'On') == 'On') then
 		WakeShield()
@@ -615,13 +638,23 @@ function LaunchOnShield(target, display, roomId)
 	local delay = tonumber(Properties['Launch Delay (ms)']) or 0
 
 	local function go()
-		BridgeRequest('POST', '/api/launch', target, function(err, data)
+		local qs = {}
+		for _, k in ipairs({ 'id', 'package', 'url', 'intentUri' }) do
+			if (target[k] ~= nil and target[k] ~= '') then
+				table.insert(qs, k .. '=' .. URLEncode(tostring(target[k])))
+			end
+		end
+		local path = '/api/launch'
+		if (#qs > 0) then path = path .. '?' .. table.concat(qs, '&') end
+		BridgeRequest('POST', path, target, function(err, data)
 			if (err) then
 				print('Shield Bridge: launch failed: ' .. tostring(err))
 				C4:UpdateProperty('Bridge Status', 'Launch failed: ' .. tostring(err))
+				if (onResult) then onResult(false, err) end
 				return
 			end
 			dbg('launch ok: ' .. tostring(type(data) == 'table' and data.message or data))
+			if (onResult) then onResult(true) end
 		end)
 	end
 
@@ -658,13 +691,17 @@ end
 
 function LaunchItemById(id, roomId)
 	local item = Bridge.itemsById[tostring(id)]
-	if (item) then
-		LaunchOnShield({ id = tonumber(item.id) or item.id }, DisplayForItem(item), roomId)
-		return true
-	end
-	-- Unknown id: ask the bridge anyway, it keeps its own cache.
-	LaunchOnShield({ id = tonumber(id) or id }, { title = 'Item ' .. tostring(id), app = '' }, roomId)
-	return false
+	local display = item and DisplayForItem(item) or { title = 'Item ' .. tostring(id), app = '' }
+	LaunchOnShield({ id = tonumber(id) or id }, display, roomId, function(ok, err)
+		if (ok) then return end
+		-- The app refused the resume deep link. Open the app itself so the user
+		-- is not left on a black input; the room is already selected and awake.
+		if (item and item.package and item.package ~= '') then
+			print('Shield Bridge: resume link refused (' .. tostring(err) .. '); opening ' .. tostring(item.app or item.package) .. ' instead')
+			LaunchOnShield({ package = item.package }, display, roomId)
+		end
+	end)
+	return item ~= nil
 end
 
 function LaunchPackage(pkg, roomId)

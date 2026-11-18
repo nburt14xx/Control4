@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>2</version>
+  <version>4</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -72,13 +72,13 @@
         <name>Select Room Source</name>
         <type>LIST</type>
         <items>
-          <item>If not already selected</item>
-          <item>Always</item>
+          <item>Select Shield</item>
+          <item>Select Shield Bridge</item>
           <item>Never</item>
         </items>
-        <default>If not already selected</default>
+        <default>Select Shield</default>
         <readonly>false</readonly>
-        <tooltip>Whether launching an item also selects Shield Bridge as the room's video source. The default skips the command when the room is already on this source, so displays with an IR power toggle are not cycled.</tooltip>
+        <tooltip>What a launch selects as the room's video source for power. "Select Shield" (default) points the room at the Shield wired into Video In, so power behaves exactly as it does for the Shield normally. "Select Shield Bridge" selects this driver instead. "Never" sends nothing, leaving room power to you. The command is skipped when the room is already on the target source.</tooltip>
       </property>
       <property>
         <name>Launch Delay (ms)</name>

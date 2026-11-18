@@ -10,7 +10,7 @@ Properties = {
 	['Shield MAC Address'] = '00:04:4b:aa:bb:cc',
 	['Wake on Select'] = 'On',
 	['Launch Delay (ms)'] = '0',
-	['Select Room Source'] = 'If not already selected',
+	['Select Room Source'] = 'Select Shield Bridge',
 	['Rows'] = 'Continue + Up Next + New',
 	['Max Items'] = '40',
 	['Forward Remote Commands'] = 'To device on Video In',
@@ -175,6 +175,40 @@ check(pendingLaunch, 'launch sent after delay')
 drain()
 Properties['Launch Delay (ms)'] = '0'
 
+------------------------------------------------------------------ launch fallback to package on failure
+ReceivedFromProxy(5001, 'GetContinue', { NAVID = 'navF', SEQ = '30', ROOMID = '12' })
+stub.respond(200, sampleContinue)
+ReceivedFromProxy(5001, 'LaunchItem', { NAVID = 'navF', SEQ = '31', ROOMID = '12', ARGS = '<params><param name="id">103</param></params>' })
+local launchBodies, launchUrls, guard = {}, {}, 0
+while (#stub.urlRequests > 0 and guard < 60) do
+	guard = guard + 1
+	local r = stub.urlRequests[1]
+	if (r.url:find('/api/launch', 1, true)) then
+		table.insert(launchBodies, r.data or '')
+		table.insert(launchUrls, r.url)
+		if ((r.data or ''):find('\"id\"', 1, true)) then
+			stub.respond(400, '{"ok":false,"message":"no app can handle resume"}')
+		else
+			stub.respond(200, '{"ok":true}')
+		end
+	elseif (r.url:find('/api/continue', 1, true)) then
+		stub.respond(200, sampleContinue)
+	else
+		stub.respond(200, '{"ok":true}')
+	end
+end
+local sawId, sawPkg, sawQuery = false, false, false
+for _, b in ipairs(launchBodies) do
+	if (b:find('\"id\":103', 1, true)) then sawId = true end
+	if (b:find('\"package\":\"com.amazon.amazonvideo.livingroom\"', 1, true)) then sawPkg = true end
+end
+for _, u in ipairs(launchUrls) do
+	if (u:find('/api/launch?id=103', 1, true)) then sawQuery = true end
+end
+check(sawId, 'resume attempted by id first')
+check(sawQuery, 'launch id is also carried in the query string')
+check(sawPkg, 'falls back to opening the app when the resume link is refused')
+
 ------------------------------------------------------------------ apps
 ReceivedFromProxy(5001, 'GetApps', { NAVID = 'nav1', SEQ = '10', ROOMID = '12', ARGS = '' })
 stub.respond(200, sampleApps)
@@ -264,27 +298,54 @@ local function selectsSent()
 	for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then n = n + 1 end end
 	return n
 end
-stub.roomDevice[12] = stub.proxyDeviceId      -- room already on Shield Bridge
+local function lastSelect()
+	for i = #stub.deviceMessages, 1, -1 do
+		if (stub.deviceMessages[i].command == 'SELECT_VIDEO_DEVICE') then return stub.deviceMessages[i] end
+	end
+end
+stub.boundProvider[1001] = 7001   -- the Shield's own driver, wired into Video In
+ShieldDeviceId = nil
+
+-- default mode selects the Shield, not this proxy
+Properties['Select Room Source'] = 'Select Shield'
+stub.roomDevice[12] = 555
 local n0 = selectsSent()
 SelectInRoom('12')
-eq(selectsSent(), n0, 'no re-select when room already on this source')
-stub.roomDevice[12] = 555                     -- room on another source
+eq(selectsSent(), n0 + 1, 'Select Shield: sends a select')
+eq(lastSelect().params.deviceid, 7001, 'Select Shield: targets the device on Video In, not the proxy')
+stub.roomDevice[12] = 7001
 SelectInRoom('12')
-eq(selectsSent(), n0 + 1, 'select sent when room on another source')
-stub.roomDevice[12] = 0                       -- room off
-SelectInRoom('12')
-eq(selectsSent(), n0 + 2, 'select sent when room is off')
-Properties['Select Room Source'] = 'Never'
-SelectInRoom('12')
-eq(selectsSent(), n0 + 2, 'Never suppresses select')
-Properties['Select Room Source'] = 'Always'
-stub.roomDevice[12] = stub.proxyDeviceId
-SelectInRoom('12')
-eq(selectsSent(), n0 + 3, 'Always re-selects even when already on this source')
-Properties['Select Room Source'] = 'If not already selected'
-stub.roomDevice[12] = nil
+eq(selectsSent(), n0 + 1, 'Select Shield: no re-select when room already on the Shield')
 
------------------------------------------------------------------- rows property
+-- Shield not bound: send nothing rather than the proxy
+ShieldDeviceId = nil
+stub.boundProvider[1001] = nil
+stub.roomDevice[12] = 555
+local n1 = selectsSent()
+SelectInRoom('12')
+eq(selectsSent(), n1, 'Select Shield: nothing sent when the Shield is not bound')
+stub.boundProvider[1001] = 7001
+ShieldDeviceId = nil
+
+-- Never
+Properties['Select Room Source'] = 'Never'
+local n2 = selectsSent()
+SelectInRoom('12')
+eq(selectsSent(), n2, 'Never: suppresses select')
+
+-- Select Shield Bridge: original behaviour
+Properties['Select Room Source'] = 'Select Shield Bridge'
+stub.roomDevice[12] = 555
+local n3 = selectsSent()
+SelectInRoom('12')
+eq(selectsSent(), n3 + 1, 'Select Shield Bridge: sends a select')
+eq(lastSelect().params.deviceid, stub.proxyDeviceId, 'Select Shield Bridge: targets the proxy')
+
+Properties['Select Room Source'] = 'Select Shield Bridge'
+stub.roomDevice[12] = nil
+ShieldDeviceId = nil
+
+------------------------------------------------------------------ rows property------------------------------------------------------------------ rows property
 Properties['Rows'] = 'Continue Watching only'
 eq(RowTypesParam(), 'CONTINUE', 'rows: continue only')
 Properties['Rows'] = 'Everything'
