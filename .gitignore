@@ -9,6 +9,9 @@ shield-bridge/.idea/
 *.iml
 *.apk
 *.aab
+# shield-bridge/app/shieldbridge-debug.jks is committed on purpose: it is the
+# fixed signing key for a sideloaded app (see shield-bridge/app/build.gradle.kts).
+# Do not add *.jks or *.keystore here.
 
 # editors / OS
 .DS_Store

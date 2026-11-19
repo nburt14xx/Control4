@@ -24,6 +24,18 @@ Two things to install: the **Shield Bridge** app on the NVIDIA Shield, and the
 
    Any sideloading method works; adb is just the quickest.
 
+   Updating to a newer build is the same `adb install -r` command. Every
+   build, local or from CI, is signed with the fixed key committed at
+   `shield-bridge/app/shieldbridge-debug.jks`, so a newer APK installs over
+   the old one and keeps the app's settings and the two permissions granted
+   below. There is no need to uninstall first.
+
+   The one exception is a Shield that still has a build from before this key
+   was introduced. Those builds were signed with a throwaway key, so
+   `adb install -r` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Run
+   `adb uninstall dev.shieldbridge` once, install the new build, and grant
+   the two permissions again. Later updates will not need this.
+
 2. Open **Shield Bridge** from the apps row. The service starts automatically.
 3. Press **Grant 'TV listings' permission** and accept the dialog.
 4. Press **Allow 'Display over other apps'** and switch it on for Shield Bridge.

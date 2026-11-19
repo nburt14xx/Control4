@@ -38,6 +38,15 @@ jobs:
       - name: Build debug APK
         working-directory: shield-bridge
         run: ./gradlew assembleDebug --no-daemon --stacktrace
+      # The APK is signed with the fixed key committed at
+      # shield-bridge/app/shieldbridge-debug.jks, so the certificate printed
+      # here must be the same on every run. That is what lets a newer build
+      # install over an older one with `adb install -r`.
+      - name: Print signing certificate
+        working-directory: shield-bridge
+        run: |
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs \
+            app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: shield-bridge-apk

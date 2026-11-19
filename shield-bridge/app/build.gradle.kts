@@ -19,9 +19,35 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        // One fixed signing key, committed to the repo on purpose.
+        //
+        // Android only lets a new APK install over an existing one when both
+        // are signed with the same key. Without this block every build uses
+        // ~/.android/debug.keystore, which GitHub-hosted runners regenerate on
+        // every run, so each CI APK had a different key and `adb install -r`
+        // failed with INSTALL_FAILED_UPDATE_INCOMPATIBLE. Uninstalling to get
+        // around that also drops the READ_TV_LISTINGS and SYSTEM_ALERT_WINDOW
+        // grants the user set up.
+        //
+        // Shield Bridge is a sideloaded personal app and never goes through the
+        // Play Store, so this key does not need to be secret; what matters is
+        // that it never changes. The password is deliberately not a secret.
+        create("shieldbridge") {
+            storeFile = file("shieldbridge-debug.jks")
+            storePassword = "shieldbridge"
+            keyAlias = "shieldbridge"
+            keyPassword = "shieldbridge"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shieldbridge")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shieldbridge")
         }
     }
 
