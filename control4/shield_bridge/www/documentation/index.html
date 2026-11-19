@@ -29,15 +29,13 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
 <h2>2. Composer</h2>
 <ol>
   <li>Add the <em>Shield Bridge</em> driver to the room that has the Shield.</li>
-  <li><strong>Connections</strong>: the driver sits between the Shield and the display.
+  <li><strong>Connections</strong>: Shield Bridge is the room's Shield source.
     <ul>
-      <li>Unbind the Shield driver's HDMI output from the TV/AVR input.</li>
-      <li>Bind the Shield driver's HDMI output to Shield Bridge <em>Video In (from Shield)</em>.</li>
-      <li>Bind Shield Bridge <em>Video Out</em> to the TV/AVR input the Shield used.</li>
-      <li>Do the same with the audio connections if the Shield's audio was bound separately.</li>
+      <li>Move the Shield's own driver to an unused room and disconnect its HDMI and audio outputs from the TV/AVR.</li>
+      <li>Bind Shield Bridge <em>Video Out</em> and <em>Audio Out</em> to the TV/AVR input the Shield is plugged into.</li>
     </ul>
-    Both the Shield and Shield Bridge then appear under Watch. Selecting either powers the same path.</li>
-  <li><strong>Properties</strong>: set <em>Bridge Address</em> (IP or host:port) and, for Wake-on-LAN, <em>Shield MAC Address</em>. Set <em>API Key</em> only if you turned that on in the app.</li>
+    Only Shield Bridge then appears under Watch in the room.</li>
+  <li><strong>Properties</strong>: set <em>Bridge Address</em>. Set <em>Shield Control Device</em> to the Shield's own driver: remote and transport buttons are relayed to it (use <em>Shield Control Device ID</em> if it is not in the picker). Set <em>API Key</em> only if you turned that on in the app.</li>
   <li><strong>Actions &gt; Test Connection</strong> and read the Lua output: it reports the app version and whether both permissions are granted.</li>
   <li>Refresh Navigators.</li>
 </ol>
@@ -47,7 +45,7 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
   <li>Watch &gt; Shield Bridge &gt; <em>Continue Watching</em>. Tap a show: the room switches to the Shield and the show resumes where it left off.</li>
   <li>Press and hold (or use the item menu) &gt; <em>Add to Room Favorites</em> to put a show on the room's home screen.</li>
   <li><em>Apps</em> tab opens any installed TV app.</li>
-  <li>Remote and transport buttons are forwarded to the driver bound to Video In, so your existing Shield control keeps working while Shield Bridge is the selected source.</li>
+  <li>Remote and transport buttons, from the physical remote, the <em>Remote</em> tab or the Now Playing bar, are relayed to the Shield Control Device. <em>Home</em> works through the Shield Bridge app itself.</li>
 </ul>
 
 <h2>Search</h2>
@@ -70,10 +68,10 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
 <table>
   <tr><th>Property</th><th>Meaning</th></tr>
   <tr><td>Wake on Select</td><td>Send Wake-on-LAN and a wake request when the source is selected or an item launched.</td></tr>
-  <tr><td>Select Room Source</td><td>Whether a launch also selects this source in the room. Default skips it when the room is already on Shield Bridge, which avoids power-cycling IR-toggle displays.</td></tr>
+  <tr><td>Select Room Source</td><td>Never (default) sends no room command on launch. <em>Select Shield Bridge</em> also selects this source, for keypad or scene launches that should turn the room on.</td></tr>
   <tr><td>Launch Delay (ms)</td><td>Wait after selecting the room source before launching, for slow TVs.</td></tr>
   <tr><td>After Launch</td><td>Jump to Now Playing or stay on the list after a launch.</td></tr>
-  <tr><td>Forward Remote Commands</td><td>Pass remote buttons to the driver on Video In, or not.</td></tr>
+  <tr><td>Forward Remote Commands</td><td>Relay remote buttons to the Shield Control Device, or not.</td></tr>
   <tr><td>Rows</td><td>Which Watch Next row types to show.</td></tr>
   <tr><td>Refresh Interval (s)</td><td>Background refresh of the cached list used by programming.</td></tr>
 </table>

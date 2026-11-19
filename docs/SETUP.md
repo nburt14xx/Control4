@@ -47,15 +47,19 @@ show both permissions `true`.
 
 1. **Driver > Add or Update Driver or Agent**, pick `shield_bridge.c4z`.
 2. Add *Shield Bridge* (under NVIDIA) to the room that has the Shield.
-3. **Connections**. The driver sits in the video path between the Shield and
-   the display, so both show up under Watch and either powers the same path:
-   - Unbind the Shield driver's HDMI output from the TV or AVR input.
-   - Bind the Shield driver's HDMI output to Shield Bridge **Video In (from Shield)**.
-   - Bind Shield Bridge **Video Out** to the TV or AVR input the Shield used.
-   - Repeat with the audio connections if the Shield's audio was bound separately.
+3. **Connections**. Shield Bridge is the Shield source for the room. The real
+   Shield driver is only used behind the scenes for remote keys:
+   - Move the Shield's own driver to a room nobody uses (a "Equipment" room),
+     and disconnect its HDMI and audio outputs from the TV or AVR.
+   - Bind Shield Bridge **Video Out** and **Audio Out** to the TV or AVR input
+     the Shield is physically plugged into.
+   - The main room now lists only Shield Bridge under Watch.
 4. **Properties**:
    - *Bridge Address*: `192.168.1.50` (port 8765 assumed) or `host:port`.
-   - *Shield MAC Address*: from Settings > Device Preferences > About > Status.
+   - *Shield Control Device*: pick the Shield's own driver. Arrow, OK, back and
+     transport buttons pressed on Shield Bridge are relayed to it. If it is not
+     in the picker, type its device ID into *Shield Control Device ID*.
+   - *Shield MAC Address*: only if you want Wake-on-LAN (*Wake on Select* = On).
    - *API Key*: only if you turned it on in the app.
 5. **Actions > Test Connection**, then read the Lua output tab. It prints the
    app version and the two permission states.
@@ -96,8 +100,10 @@ Behaviour worth knowing:
 - Long-press (or use the item's action menu) > **Add to Room Favorites** to
   pin a show to the room's home screen for one-tap resume.
 - **Apps** tab opens any installed TV app.
-- While Shield Bridge is the selected source, the remote's transport and
-  navigation buttons are forwarded to the driver on Video In, so nothing is lost.
+- The physical remote's arrows, OK, back and transport buttons work as usual:
+  Shield Bridge relays them to the Shield Control Device.
+- The **Remote** tab is an on-screen remote, and the Now Playing bar has
+  rewind, play, pause and fast forward.
 
 ### One physical button
 

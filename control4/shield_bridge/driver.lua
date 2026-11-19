@@ -13,11 +13,9 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.2.0"
+DRIVER_VERSION = "0.3.0"
 
 MSP_PROXY = 5001          -- media_service proxy binding
-VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
-AUDIO_IN_BINDING = 3001
 
 DEFAULT_BRIDGE_PORT = 8765
 
@@ -38,7 +36,6 @@ Bridge = Bridge or {
 Timer = Timer or {}
 Navigators = Navigators or {}
 DEBUGPRINT = false
-ShieldDeviceId = nil      -- device bound to VIDEO_IN_BINDING, resolved lazily
 
 PersistData = PersistData or {}
 
@@ -597,30 +594,18 @@ end
 -- Selects this driver as the room's video source, unless the room is already
 -- on it. Re-selecting an active source makes the room re-run its power-on
 -- sequence, which flips displays that only have an IR power toggle.
+-- Shield Bridge is the room's Shield source. Launching from Navigator needs no
+-- room command (the user is already on this source); "Select Shield Bridge"
+-- exists for keypad or scene launches that should also turn the room on. The
+-- command is skipped when the room is already on this source.
 function SelectInRoom(roomId)
 	roomId = tonumber(roomId)
 	if (not roomId or roomId == 0) then return end
-	local mode = Properties['Select Room Source'] or 'Never'
-	if (mode == 'Never') then return end
-
-	-- By default the room is pointed at the Shield itself (the device wired into
-	-- Video In), so the room powers up exactly the way it does for the Shield
-	-- normally. Selecting this proxy instead can re-run a room's power macro and
-	-- cycle a display that only has an IR power toggle.
-	local targetId
-	if (mode == 'Select Shield Bridge') then
-		targetId = C4:GetProxyDevices()
-	else
-		targetId = ResolveShieldDevice()
-		if (not targetId) then
-			dbg('no device bound to Video In; not selecting any source (set Select Room Source to Shield Bridge to override)')
-			return
-		end
-	end
-
+	if ((Properties['Select Room Source'] or 'Never') ~= 'Select Shield Bridge') then return end
+	local targetId = C4:GetProxyDevices()
 	local current = RoomCurrentDevice(roomId)
 	if (current and current == targetId) then
-		dbg('room ' .. roomId .. ' already on target source ' .. tostring(targetId) .. '; not re-selecting')
+		dbg('room ' .. roomId .. ' already on Shield Bridge; not re-selecting')
 		return
 	end
 	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> ' .. tostring(targetId))
@@ -730,11 +715,18 @@ end
 -- Remote / transport forwarding to the Shield's own driver
 -------------------------------------------------------------------------------
 
+-- The driver that really controls the Shield (IP, IR or CEC). It can live in
+-- any room; nothing is wired between it and this driver. The numeric override
+-- wins over the picker.
 function ResolveShieldDevice()
-	if (ShieldDeviceId) then return ShieldDeviceId end
-	local ok, id = pcall(function() return C4:GetBoundProviderDevice(C4:GetProxyDevices(), VIDEO_IN_BINDING) end)
-	if (ok and id and id ~= 0) then ShieldDeviceId = id end
-	return ShieldDeviceId
+	local id = tonumber(trim(Properties['Shield Control Device ID']))
+	if (not id or id <= 0) then
+		id = tonumber(tostring(Properties['Shield Control Device'] or ''):match('(%d+)'))
+	end
+	if (not id or id <= 0) then return nil end
+	-- never relay to ourselves: that would loop
+	if (id == C4:GetProxyDevices() or id == C4:GetDeviceID()) then return nil end
+	return id
 end
 
 FORWARDED_COMMANDS = {}
@@ -757,19 +749,19 @@ do
 end
 
 function ForwardToShield(strCommand, tParams)
-	if ((Properties['Forward Remote Commands'] or 'To device on Video In') ~= 'To device on Video In') then
+	if ((Properties['Forward Remote Commands'] or 'On') == 'Off') then
 		return false
 	end
 	local target = ResolveShieldDevice()
 	if (not target) then
-		dbg('no device bound to Video In; cannot forward ' .. strCommand)
+		dbg('no Shield Control Device chosen; cannot relay ' .. strCommand)
 		return false
 	end
 	local params = {}
 	for k, v in pairs(tParams or {}) do
 		if (k ~= 'NAVID' and k ~= 'SEQ' and k ~= 'ROOMID' and k ~= 'ARGS') then params[k] = v end
 	end
-	dbg('forward ' .. strCommand .. ' -> device ' .. tostring(target))
+	dbg('relay ' .. strCommand .. ' -> device ' .. tostring(target))
 	C4:SendToDevice(target, strCommand, params)
 	return true
 end
@@ -805,7 +797,7 @@ function UpdateMediaInfo()
 end
 
 function UpdateDashboard(navId, roomId)
-	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>SkipRev Play Pause SkipFwd Stop</Items>')
+	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>ScanRev Play Pause ScanFwd SkipFwd</Items>')
 end
 
 function UpdateQueue(navId, roomId)
@@ -988,6 +980,44 @@ function RFP.SearchGo(tParams, args, idBinding)
 	end
 	DoSearch(q, PersistData.searchTarget or 'global', tParams.ROOMID)
 	-- stay on the Search screen; results show on the TV
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
+end
+
+-- On-screen remote: a list of keys. Each relays the standard Control4 command
+-- to the Shield Control Device; Home goes through the bridge app instead, so it
+-- works even with no control device chosen.
+REMOTE_KEYS = {
+	{ 'UP', 'Up', 'nav_up' }, { 'DOWN', 'Down', 'nav_down' }, { 'LEFT', 'Left', 'nav_left' },
+	{ 'RIGHT', 'Right', 'nav_right' }, { 'ENTER', 'OK / Select', 'nav_ok' }, { 'CANCEL', 'Back', 'nav_back' },
+	{ 'HOME', 'Home', 'nav_home' }, { 'PLAY', 'Play', 'nav_play' }, { 'PAUSE', 'Pause', 'nav_pause' },
+	{ 'SCAN_REV', 'Rewind', 'nav_rew' }, { 'SCAN_FWD', 'Fast Forward', 'nav_ff' },
+	{ 'SKIP_REV', 'Previous', 'nav_left' }, { 'SKIP_FWD', 'Next', 'nav_right' },
+	{ 'MENU', 'Menu', 'nav_ok' }, { 'INFO', 'Info', 'nav_ok' },
+}
+
+function RFP.GetRemote(tParams, args, idBinding)
+	local x = { '<List>' }
+	if (not ResolveShieldDevice()) then
+		table.insert(x, HeaderXml('Choose a Shield Control Device in Composer to enable these keys'))
+	end
+	for _, k in ipairs(REMOTE_KEYS) do
+		local icon = 'controller://driver/shield_bridge/icons/' .. k[3] .. '/' .. k[3] .. '_140.png'
+		table.insert(x, '<item>' .. XMLTag('id', k[1]) .. XMLTag('title', k[2]) ..
+			'<image_list width="140" height="140">' .. icon .. '</image_list>' ..
+			'<default_action>RemoteKey</default_action></item>')
+	end
+	table.insert(x, '</List>')
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, table.concat(x))
+end
+
+function RFP.RemoteKey(tParams, args, idBinding)
+	local key = tostring(args.id or '')
+	if (key == 'HOME') then
+		RFP.HOME(tParams, args, idBinding)
+	elseif (FORWARDED_COMMANDS[key]) then
+		ForwardToShield(key, {})
+	end
+	-- empty reply keeps the remote on screen for the next press
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
 end
 
@@ -1675,6 +1705,13 @@ function EC.Test_Connection(tParams)
 	end)
 	FetchContinue(nil)
 	FetchApps(nil)
+	local dev = ResolveShieldDevice()
+	if (dev) then
+		local okName, name = pcall(function() return C4:GetDeviceDisplayName(dev) end)
+		print('Remote keys relay to device ' .. dev .. ((okName and name) and (' (' .. tostring(name) .. ')') or ''))
+	else
+		print('Remote keys: no Shield Control Device chosen, so arrows and transport go nowhere')
+	end
 end
 
 function EC.Test_Search(tParams)
@@ -1791,10 +1828,6 @@ function OnPropertyChanged(strProperty)
 end
 
 function OnBindingChanged(idBinding, strClass, bIsBound, otherDeviceId, otherBindingId)
-	if (idBinding == VIDEO_IN_BINDING) then
-		ShieldDeviceId = bIsBound and otherDeviceId or nil
-		dbg('Video In now bound to ' .. tostring(ShieldDeviceId))
-	end
 end
 
 function OnDriverInit()

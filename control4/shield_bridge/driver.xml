@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>7</version>
+  <version>8</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -73,12 +73,11 @@
         <type>LIST</type>
         <items>
           <item>Never</item>
-          <item>Select Shield</item>
           <item>Select Shield Bridge</item>
         </items>
         <default>Never</default>
         <readonly>false</readonly>
-        <tooltip>What a launch selects as the room's video source for power. "Select Shield" (default) points the room at the Shield wired into Video In, so power behaves exactly as it does for the Shield normally. "Select Shield Bridge" selects this driver instead. "Never" sends nothing, leaving room power to you. The command is skipped when the room is already on the target source.</tooltip>
+        <tooltip>Whether a launch also selects Shield Bridge in the room. Leave on Never when launching from Navigator. Use Select Shield Bridge if a keypad or scene should turn the room on and start a show; it is skipped when the room is already on Shield Bridge.</tooltip>
       </property>
       <property>
         <name>Launch Delay (ms)</name>
@@ -100,15 +99,30 @@
         <readonly>false</readonly>
       </property>
       <property>
+        <name>Shield Control Device</name>
+        <type>DEVICE_SELECTOR</type>
+        <default />
+        <multiselect>false</multiselect>
+        <readonly>false</readonly>
+        <tooltip>The driver that actually controls the Shield (it can sit in any room). Remote and transport buttons pressed on Shield Bridge are relayed to it.</tooltip>
+      </property>
+      <property>
+        <name>Shield Control Device ID</name>
+        <type>STRING</type>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>Optional. Type the Shield driver's device ID here if it does not appear in the picker above. Overrides the picker.</tooltip>
+      </property>
+      <property>
         <name>Forward Remote Commands</name>
         <type>LIST</type>
         <items>
-          <item>To device on Video In</item>
+          <item>On</item>
           <item>Off</item>
         </items>
-        <default>To device on Video In</default>
+        <default>On</default>
         <readonly>false</readonly>
-        <tooltip>Transport and navigation buttons pressed while this source is selected are passed to the driver bound to the Video In connection (your existing Shield control driver).</tooltip>
+        <tooltip>Relay remote and transport buttons to the Shield Control Device.</tooltip>
       </property>
       <property>
         <name>Lists</name>
@@ -551,6 +565,66 @@
           <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_search/nav_search_130.png</Icon>
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_search/nav_search_140.png</Icon>
         </IconGroup>
+        <IconGroup id="nav_play">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_play/nav_play_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_play/nav_play_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_play/nav_play_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_play/nav_play_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_play/nav_play_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_play/nav_play_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_play/nav_play_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_play/nav_play_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_play/nav_play_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_play/nav_play_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_play/nav_play_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_play/nav_play_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_play/nav_play_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_pause">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_pause/nav_pause_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_pause/nav_pause_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_pause/nav_pause_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_pause/nav_pause_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_pause/nav_pause_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_pause/nav_pause_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_pause/nav_pause_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_pause/nav_pause_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_pause/nav_pause_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_pause/nav_pause_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_pause/nav_pause_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_pause/nav_pause_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_pause/nav_pause_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_rew">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_rew/nav_rew_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_rew/nav_rew_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_rew/nav_rew_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_rew/nav_rew_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_rew/nav_rew_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_rew/nav_rew_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_rew/nav_rew_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_rew/nav_rew_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_rew/nav_rew_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_rew/nav_rew_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_rew/nav_rew_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_rew/nav_rew_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_rew/nav_rew_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_ff">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_ff/nav_ff_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_ff/nav_ff_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_ff/nav_ff_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_ff/nav_ff_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_ff/nav_ff_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_ff/nav_ff_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_ff/nav_ff_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_ff/nav_ff_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_ff/nav_ff_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_ff/nav_ff_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_ff/nav_ff_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_ff/nav_ff_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_ff/nav_ff_140.png</Icon>
+        </IconGroup>
       </Icons>
       <Search>
         <Filters>
@@ -602,6 +676,12 @@
           <Name>Search</Name>
           <IconId>nav_search</IconId>
           <ScreenId>SearchScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Remote</Id>
+          <Name>Remote</Name>
+          <IconId>nav_ok</IconId>
+          <ScreenId>RemoteScreen</ScreenId>
         </Tab>
       </Tabs>
       <Screens>
@@ -859,6 +939,47 @@
             </IsHeader>
           </List>
         </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>RemoteScreen</Id>
+          <DataCommand>
+            <Name>GetRemote</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>false</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
       </Screens>
       <NowPlaying>
         <ActionIds>NavUp NavDown NavLeft NavRight NavOk NavBack NavHome</ActionIds>
@@ -1090,6 +1211,26 @@
           </Command>
         </Action>
         <Action>
+          <Id>RemoteKey</Id>
+          <Name>Press</Name>
+          <Command>
+            <Name>RemoteKey</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
           <Id>SearchOnTv</Id>
           <Name>Search on TV</Name>
           <Command>
@@ -1111,6 +1252,26 @@
         </Action>
       </Actions>
       <Dashboard>
+        <Transport>
+          <Id>ScanRev</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Rewind</Name>
+          <IconId>nav_rew</IconId>
+          <ReleaseCommand>
+            <Name>SCAN_REV</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>ScanFwd</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Fast Forward</Name>
+          <IconId>nav_ff</IconId>
+          <ReleaseCommand>
+            <Name>SCAN_FWD</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
         <Transport>
           <Id>Play</Id>
           <ButtonType>PLAY</ButtonType>
@@ -1187,38 +1348,7 @@
         </class>
       </classes>
     </connection>
-    <!-- The Shield's own driver (IP, IR or CEC) plugs into these inputs... -->
-    <connection proxybindingid="5001">
-      <id>1001</id>
-      <type>5</type>
-      <connectionname>Video In (from Shield)</connectionname>
-      <consumer>True</consumer>
-      <linelevel>True</linelevel>
-      <classes>
-        <class>
-          <classname>HDMI</classname>
-        </class>
-      </classes>
-    </connection>
-    <connection proxybindingid="5001">
-      <id>3001</id>
-      <type>6</type>
-      <connectionname>Audio In (from Shield)</connectionname>
-      <consumer>True</consumer>
-      <linelevel>True</linelevel>
-      <classes>
-        <class>
-          <classname>STEREO</classname>
-        </class>
-        <class>
-          <classname>DIGITAL_COAX</classname>
-        </class>
-        <class>
-          <classname>DIGITAL_OPTICAL</classname>
-        </class>
-      </classes>
-    </connection>
-    <!-- ...and these outputs go to the TV / AVR input the Shield used to be bound to. -->
+    <!-- Bind these to the TV / AVR input the Shield is physically plugged into. -->
     <connection proxybindingid="5001">
       <id>2001</id>
       <type>5</type>

@@ -239,25 +239,71 @@ for _, r in ipairs(stub.urlRequests) do if (r.method == 'POST' and r.url:find('/
 find(lastPost and lastPost.data or '', '"intentUri":"intent://www.netflix.com/title/81233755', 'favorite launches by deep link')
 drain()
 
------------------------------------------------------------------- transport forwarding
-stub.boundProvider[1001] = 4242
-ShieldDeviceId = nil
+------------------------------------------------------------------ relay to the Shield Control Device
+-- nothing chosen: keys go nowhere and nothing is sent
+Properties['Shield Control Device'] = ''
+Properties['Shield Control Device ID'] = ''
 before = #stub.deviceMessages
 ReceivedFromProxy(5001, 'PAUSE', { ROOMID = '12', NAVID = 'nav1' })
+eq(#stub.deviceMessages, before, 'no relay when no control device is chosen')
+-- chosen through the picker; it can be in any room, no binding involved
+Properties['Shield Control Device'] = '4242'
+ReceivedFromProxy(5001, 'PAUSE', { ROOMID = '12', NAVID = 'nav1' })
 local fwd = stub.deviceMessages[#stub.deviceMessages]
-check(#stub.deviceMessages == before + 1 and fwd.device == 4242 and fwd.command == 'PAUSE', 'PAUSE forwarded to bound Shield driver')
-check(fwd.params.NAVID == nil, 'navigator params stripped when forwarding')
+check(#stub.deviceMessages == before + 1 and fwd.device == 4242 and fwd.command == 'PAUSE', 'PAUSE relayed to the chosen Shield driver')
+check(fwd.params.NAVID == nil, 'navigator params stripped when relaying')
 ReceivedFromProxy(5001, 'START_UP', { BEGIN = 'true' })
-check(stub.deviceMessages[#stub.deviceMessages].command == 'START_UP', 'held keys forwarded')
+check(stub.deviceMessages[#stub.deviceMessages].command == 'START_UP', 'held keys relayed')
+ReceivedFromProxy(5001, 'SCAN_FWD', {})
+check(stub.deviceMessages[#stub.deviceMessages].command == 'SCAN_FWD', 'fast forward relayed')
+-- the typed ID overrides the picker
+Properties['Shield Control Device ID'] = '5151'
+ReceivedFromProxy(5001, 'PLAY', {})
+eq(stub.deviceMessages[#stub.deviceMessages].device, 5151, 'typed device ID overrides the picker')
+Properties['Shield Control Device ID'] = ''
+-- never relay to ourselves
+Properties['Shield Control Device'] = tostring(stub.proxyDeviceId)
+before = #stub.deviceMessages
+ReceivedFromProxy(5001, 'PLAY', {})
+eq(#stub.deviceMessages, before, 'refuses to relay to itself')
+Properties['Shield Control Device'] = '4242'
 Properties['Forward Remote Commands'] = 'Off'
 before = #stub.deviceMessages
 ReceivedFromProxy(5001, 'PLAY', {})
-eq(#stub.deviceMessages, before, 'forwarding can be disabled')
-Properties['Forward Remote Commands'] = 'To device on Video In'
-OnBindingChanged(1001, 'HDMI', false, 4242, 2001)
-eq(ShieldDeviceId, nil, 'unbinding clears cached device')
-OnBindingChanged(1001, 'HDMI', true, 4343, 2001)
-eq(ShieldDeviceId, 4343, 'binding caches device id')
+eq(#stub.deviceMessages, before, 'relaying can be disabled')
+Properties['Forward Remote Commands'] = 'To device on Video In'   -- legacy value still means on
+ReceivedFromProxy(5001, 'PLAY', {})
+eq(#stub.deviceMessages, before + 1, 'legacy setting value still relays')
+Properties['Forward Remote Commands'] = 'On'
+
+------------------------------------------------------------------ Remote tab
+ReceivedFromProxy(5001, 'GetRemote', { NAVID = 'navR', SEQ = '60' })
+local rx = stub.proxyMessages[#stub.proxyMessages].params.DATA
+find(rx, '<id>UP</id><title>Up</title>', 'remote lists Up')
+find(rx, '<id>SCAN_REV</id><title>Rewind</title>', 'remote lists Rewind')
+find(rx, 'icons/nav_ff/nav_ff_140.png', 'remote keys carry icons')
+find(rx, '<default_action>RemoteKey</default_action>', 'remote keys are tappable')
+before = #stub.deviceMessages
+ReceivedFromProxy(5001, 'RemoteKey', { NAVID = 'navR', SEQ = '61', ARGS = '<params><param name="id">ENTER</param></params>' })
+fwd = stub.deviceMessages[#stub.deviceMessages]
+check(#stub.deviceMessages == before + 1 and fwd.device == 4242 and fwd.command == 'ENTER', 'tapping OK relays ENTER')
+eq(stub.proxyMessages[#stub.proxyMessages].params.DATA, '', 'remote stays on screen after a press')
+-- Home goes through the bridge app, not the control device
+before = #stub.deviceMessages
+ReceivedFromProxy(5001, 'RemoteKey', { NAVID = 'navR', SEQ = '62', ARGS = '<params><param name="id">HOME</param></params>' })
+eq(#stub.deviceMessages, before, 'Home is not relayed to the control device')
+local hreq
+for _, r in ipairs(stub.urlRequests) do if (r.url:find('category.HOME', 1, true)) then hreq = r end end
+check(hreq ~= nil, 'Home asks the bridge app for the launcher')
+drain()
+-- unknown key ids are ignored
+before = #stub.deviceMessages
+ReceivedFromProxy(5001, 'RemoteKey', { NAVID = 'navR', SEQ = '63', ARGS = '<params><param name="id">SELF_DESTRUCT</param></params>' })
+eq(#stub.deviceMessages, before, 'unknown remote key ignored')
+Properties['Shield Control Device'] = ''
+ReceivedFromProxy(5001, 'GetRemote', { NAVID = 'navR', SEQ = '64' })
+find(stub.proxyMessages[#stub.proxyMessages].params.DATA, 'Choose a Shield Control Device in Composer', 'remote explains when no control device is set')
+Properties['Shield Control Device'] = '4242'
 
 ------------------------------------------------------------------ bridge offline
 -- repopulate the cache (the favorites test emptied it) so the offline fallback has data
@@ -304,47 +350,25 @@ local function lastSelect()
 		if (stub.deviceMessages[i].command == 'SELECT_VIDEO_DEVICE') then return stub.deviceMessages[i] end
 	end
 end
-stub.boundProvider[1001] = 7001   -- the Shield's own driver, wired into Video In
-ShieldDeviceId = nil
-
--- default mode selects the Shield, not this proxy
-Properties['Select Room Source'] = 'Select Shield'
+-- Never (default): no room command at all
+Properties['Select Room Source'] = 'Never'
 stub.roomDevice[12] = 555
 local n0 = selectsSent()
 SelectInRoom('12')
-eq(selectsSent(), n0 + 1, 'Select Shield: sends a select')
-eq(lastSelect().params.deviceid, 7001, 'Select Shield: targets the device on Video In, not the proxy')
-stub.roomDevice[12] = 7001
+eq(selectsSent(), n0, 'Never: no room select')
+-- a value from an older version is treated as Never
+Properties['Select Room Source'] = 'Select Shield'
 SelectInRoom('12')
-eq(selectsSent(), n0 + 1, 'Select Shield: no re-select when room already on the Shield')
-
--- Shield not bound: send nothing rather than the proxy
-ShieldDeviceId = nil
-stub.boundProvider[1001] = nil
-stub.roomDevice[12] = 555
-local n1 = selectsSent()
-SelectInRoom('12')
-eq(selectsSent(), n1, 'Select Shield: nothing sent when the Shield is not bound')
-stub.boundProvider[1001] = 7001
-ShieldDeviceId = nil
-
--- Never
-Properties['Select Room Source'] = 'Never'
-local n2 = selectsSent()
-SelectInRoom('12')
-eq(selectsSent(), n2, 'Never: suppresses select')
-
--- Select Shield Bridge: original behaviour
+eq(selectsSent(), n0, 'legacy Select Shield value sends nothing')
+-- Select Shield Bridge: selects this source, unless the room is already on it
 Properties['Select Room Source'] = 'Select Shield Bridge'
-stub.roomDevice[12] = 555
-local n3 = selectsSent()
 SelectInRoom('12')
-eq(selectsSent(), n3 + 1, 'Select Shield Bridge: sends a select')
-eq(lastSelect().params.deviceid, stub.proxyDeviceId, 'Select Shield Bridge: targets the proxy')
-
-Properties['Select Room Source'] = 'Select Shield Bridge'
+eq(selectsSent(), n0 + 1, 'Select Shield Bridge: sends a select')
+eq(lastSelect().params.deviceid, stub.proxyDeviceId, 'Select Shield Bridge: targets this driver')
+stub.roomDevice[12] = stub.proxyDeviceId
+SelectInRoom('12')
+eq(selectsSent(), n0 + 1, 'no re-select when the room is already on Shield Bridge')
 stub.roomDevice[12] = nil
-ShieldDeviceId = nil
 
 ------------------------------------------------------------------ rows property------------------------------------------------------------------ rows property
 Properties['Rows'] = 'Continue Watching only'
