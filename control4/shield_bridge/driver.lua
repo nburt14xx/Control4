@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.4"
+DRIVER_VERSION = "0.1.5"
 
 MSP_PROXY = 5001          -- media_service proxy binding
 VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
@@ -932,6 +932,37 @@ function RFP.jumpToFavorite(tParams, args, idBinding)
 	end
 end
 
+-- Builds the launch target for a search. "global" uses Android TV's system-wide
+-- search (what the Shield's own mic search drives, minus the voice); the per-app
+-- targets open that app's search results page. Results appear on the TV; the
+-- Shield exposes no way to return them to Control4.
+function BuildSearchTarget(query, target)
+	query = trim(query)
+	if (query == '') then return nil end
+	local tl = tostring(target or 'global'):lower()
+	if (tl == 'netflix') then
+		return { url = 'https://www.netflix.com/search?q=' .. URLEncode(query) }, 'Netflix'
+	elseif (tl == 'youtube') then
+		return { url = 'https://www.youtube.com/results?search_query=' .. URLEncode(query) }, 'YouTube'
+	else
+		local intentUri = 'intent:#Intent;action=android.search.action.GLOBAL_SEARCH;S.query=' .. URLEncode(query) .. ';end'
+		return { intentUri = intentUri }, 'all apps'
+	end
+end
+
+function DoSearch(query, target, roomId)
+	local t, label = BuildSearchTarget(query, target)
+	if (not t) then
+		print('Shield Bridge: empty search query')
+		return false
+	end
+	dbg('search "' .. query .. '" in ' .. label)
+	-- Search is a lookup, not a source change: never select the room or touch
+	-- power (roomId is intentionally dropped). Results appear on the TV.
+	LaunchOnShield(t, { title = 'Search: ' .. query, app = 'Search' }, nil)
+	return true
+end
+
 -- Opens the Shield's own home screen (its native UI) with no room or power
 -- command, so it never disturbs a projector on an IR power toggle.
 function RFP.HOME(tParams, args, idBinding)
@@ -939,6 +970,25 @@ function RFP.HOME(tParams, args, idBinding)
 	BridgeRequest('POST', '/api/launch?intentUri=' .. URLEncode(homeIntent), { intentUri = homeIntent }, function(err)
 		if (err) then print('Shield Bridge: Home failed: ' .. tostring(err)) end
 	end)
+end
+
+function RFP.GetSearch(tParams, args, idBinding)
+	local q = XMLEncode(PersistData.searchQuery or '')
+	local tgt = PersistData.searchTarget or 'global'
+	local xml = '<Settings><SearchQuery>' .. q .. '</SearchQuery><SearchTarget>' .. tgt .. '</SearchTarget></Settings>'
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, xml)
+end
+
+function RFP.SearchGo(tParams, args, idBinding)
+	local q = PersistData.searchQuery or ''
+	if (trim(q) == '') then
+		-- nothing typed yet: stay on the screen
+		DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
+		return
+	end
+	DoSearch(q, PersistData.searchTarget or 'global', tParams.ROOMID)
+	-- stay on the Search screen; results show on the TV
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
 end
 
 function RFP.GetDashboard(tParams, args, idBinding)
@@ -968,7 +1018,15 @@ function RFP.DISCONNECT_OUTPUT(tParams, args, idBinding) end
 function RFP.INPUT_OUTPUT_CHANGED(tParams, args, idBinding) end
 function RFP.DESTROY_NAVIGATOR(tParams, args, idBinding) end
 function RFP.DESTROY_NAV(tParams, args, idBinding) end
-function RFP.SettingChanged(tParams, args, idBinding) end
+function RFP.SettingChanged(tParams, args, idBinding)
+	local prop = args.PropertyName or args.propertyName
+	local value = args.Value or args.value
+	if (prop == 'SearchQuery') then
+		PersistData.searchQuery = value or ''
+	elseif (prop == 'SearchTarget') then
+		PersistData.searchTarget = value or 'global'
+	end
+end
 
 function ParseArgs(tParams)
 	local args = {}
@@ -1061,6 +1119,13 @@ function EC.Launch_URL(tParams)
 	local url = trim(tParams.URL)
 	if (url == '') then return end
 	LaunchOnShield({ url = url }, { title = url, app = '' }, tParams.Room)
+end
+
+function EC.Search(tParams)
+	local q = tParams.Query
+	if (q and trim(q) ~= '') then
+		DoSearch(q, tParams.Target, tParams.Room)
+	end
 end
 
 function EC.Wake_Shield(tParams)

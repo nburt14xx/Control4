@@ -384,5 +384,44 @@ OnDriverLateInit()
 drain()
 eq(Properties['Select Room Source'], 'Select Shield', 'migration does not run twice')
 
+------------------------------------------------------------------ search
+-- global search: type a query into the SearchScreen, then press Go
+ReceivedFromProxy(5001, 'SettingChanged', { ARGS = '<params><param name="ScreenId">SearchScreen</param><param name="PropertyName">SearchQuery</param><param name="Value">the bear</param></params>' })
+eq(PersistData.searchQuery, 'the bear', 'search query stored from the text field')
+ReceivedFromProxy(5001, 'SettingChanged', { ARGS = '<params><param name="ScreenId">SearchScreen</param><param name="PropertyName">SearchTarget</param><param name="Value">global</param></params>' })
+eq(PersistData.searchTarget, 'global', 'search target stored from the combo box')
+-- GetSearch returns the stored values so the field persists
+ReceivedFromProxy(5001, 'GetSearch', { NAVID = 'navS', SEQ = '50' })
+find(stub.proxyMessages[#stub.proxyMessages].params.DATA, '<SearchQuery>the bear</SearchQuery>', 'GetSearch echoes the stored query')
+-- Go: fires a global-search intent via the launch endpoint, no room select
+local selBefore = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then selBefore = selBefore + 1 end end
+ReceivedFromProxy(5001, 'SearchGo', { NAVID = 'navS', SEQ = '51', ROOMID = '12' })
+local sreq
+for _, r in ipairs(stub.urlRequests) do if (r.url:find('/api/launch', 1, true) and r.url:find('GLOBAL_SEARCH', 1, true)) then sreq = r end end
+check(sreq ~= nil, 'global search posts a GLOBAL_SEARCH intent')
+find(sreq and sreq.url or '', 'S.query', 'search intent carries the query extra')
+local selAfter = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then selAfter = selAfter + 1 end end
+eq(selAfter, selBefore, 'search sends no room select / power command')
+drain()
+
+-- per-app search builds that app's results URL
+local nf = BuildSearchTarget('severance', 'netflix')
+eq(nf.url, 'https://www.netflix.com/search?q=severance', 'netflix search url')
+local yt = BuildSearchTarget('lofi beats', 'youtube')
+eq(yt.url, 'https://www.youtube.com/results?search_query=lofi%20beats', 'youtube search url encodes spaces')
+local g = BuildSearchTarget('dune part two', 'All apps')
+find(g.intentUri, 'action=android.search.action.GLOBAL_SEARCH', 'All apps maps to global search')
+find(g.intentUri, 'S.query=dune%20part%20two', 'global search encodes spaces in the intent')
+check(BuildSearchTarget('', 'global') == nil, 'empty query yields no target')
+
+-- programming command
+ExecuteCommand('Search', { Query = 'andor', Target = 'Netflix' })
+local pnf
+for _, r in ipairs(stub.urlRequests) do if (r.method == 'POST' and r.url:find('/api/launch', 1, true) and (r.data or ''):find('netflix.com/search', 1, true)) then pnf = r end end
+check(pnf ~= nil, 'Search command launches a Netflix search')
+drain()
+
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end

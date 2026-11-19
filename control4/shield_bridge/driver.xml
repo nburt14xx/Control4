@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>5</version>
+  <version>6</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -215,6 +215,26 @@
           <param>
             <name>Room</name>
             <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Search</name>
+        <description>Search for PARAM1 on NAME (in PARAM2)</description>
+        <params>
+          <param>
+            <name>Query</name>
+            <type>STRING</type>
+          </param>
+          <param>
+            <name>Target</name>
+            <type>LIST</type>
+            <items>
+              <item>All apps</item>
+              <item>Netflix</item>
+              <item>YouTube</item>
+            </items>
+            <default>All apps</default>
           </param>
         </params>
       </command>
@@ -453,6 +473,21 @@
           <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_130.png</Icon>
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_playpause/nav_playpause_140.png</Icon>
         </IconGroup>
+        <IconGroup id="nav_search">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_search/nav_search_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_search/nav_search_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_search/nav_search_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_search/nav_search_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_search/nav_search_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_search/nav_search_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_search/nav_search_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_search/nav_search_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_search/nav_search_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_search/nav_search_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_search/nav_search_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_search/nav_search_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_search/nav_search_140.png</Icon>
+        </IconGroup>
       </Icons>
       <Tabs>
         <Tab>
@@ -466,6 +501,12 @@
           <Name>Apps</Name>
           <IconId>tab_apps</IconId>
           <ScreenId>AppsScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Search</Id>
+          <Name>Search</Name>
+          <IconId>nav_search</IconId>
+          <ScreenId>SearchScreen</ScreenId>
         </Tab>
       </Tabs>
       <Screens>
@@ -582,6 +623,47 @@
               </ValidValues>
             </IsHeader>
           </List>
+        </Screen>
+        <Screen xsi:type="SettingsScreenType">
+          <Id>SearchScreen</Id>
+          <DataCommand>
+            <Name>GetSearch</Name>
+            <Type>PROTOCOL</Type>
+          </DataCommand>
+          <RequiresRefresh>false</RequiresRefresh>
+          <Item>
+            <HeaderTxt>SEARCH THE SHIELD</HeaderTxt>
+          </Item>
+          <Item>
+            <Label>Search for</Label>
+            <TextField propertyName="SearchQuery" />
+          </Item>
+          <Item>
+            <Label>In</Label>
+            <ComboBox propertyName="SearchTarget">
+              <Item>
+                <Id>global</Id>
+                <Value>All apps</Value>
+              </Item>
+              <Item>
+                <Id>netflix</Id>
+                <Value>Netflix</Value>
+              </Item>
+              <Item>
+                <Id>youtube</Id>
+                <Value>YouTube</Value>
+              </Item>
+            </ComboBox>
+          </Item>
+          <Item>
+            <Button>
+              <Name>Search</Name>
+              <Command>
+                <Name>SearchGo</Name>
+                <Type>PROTOCOL</Type>
+              </Command>
+            </Button>
+          </Item>
         </Screen>
       </Screens>
       <NowPlaying>

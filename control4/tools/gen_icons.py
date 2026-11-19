@@ -126,6 +126,16 @@ def nav_glyph(size, kind):
         # simple house
         d.polygon([(cx, cy - r), (cx - r, cy), (cx + r, cy)], fill=WHITE)
         d.rectangle([cx - r * 0.65, cy - r * 0.1, cx + r * 0.65, cy + r * 0.75], fill=WHITE)
+    elif kind == "search":
+        w = max(2, int(s * 0.1))
+        rr = r * 0.62
+        ccx, ccy = cx - r * 0.18, cy - r * 0.18
+        d.ellipse([ccx - rr, ccy - rr, ccx + rr, ccy + rr], outline=WHITE, width=w)
+        # handle
+        import math
+        hx0 = ccx + rr * math.cos(math.radians(45))
+        hy0 = ccy + rr * math.sin(math.radians(45))
+        d.line([hx0, hy0, cx + r * 0.75, cy + r * 0.75], fill=WHITE, width=int(w * 1.4))
     elif kind == "playpause":
         # play triangle + pause bars, side by side
         d.polygon([(cx - r, cy - r * 0.7), (cx - r, cy + r * 0.7), (cx - r * 0.1, cy)], fill=WHITE)
@@ -154,7 +164,7 @@ def main():
     save(device_icon(64), os.path.join(DRIVER_ICONS, "device_lg.png"))
 
     # On-screen control glyphs for the Now Playing remote
-    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause"):
+    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause", "search"):
         name = "nav_" + kind
         for sz in TAB_SIZES:
             save(nav_glyph(sz, kind), os.path.join(DRIVER_ICONS, name, f"{name}_{sz}.png"))
