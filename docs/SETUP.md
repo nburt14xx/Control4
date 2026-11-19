@@ -61,6 +61,34 @@ show both permissions `true`.
    app version and the two permission states.
 6. Refresh Navigators.
 
+## Optional: search with posters inside Control4
+
+The streaming apps expose no search, so results come from the Streaming
+Availability API (Movie of the Night), a database of what streams where in 66
+countries. It has a free plan that needs no payment details.
+
+1. Get a key: follow the Authentication guide at
+   `docs.movieofthenight.com` (or subscribe on RapidAPI and set
+   *Search API Service* to RapidAPI).
+2. In Composer, Shield Bridge properties: paste it into **Search API Key**, and
+   set **Search Country** to your two-letter code (`us` by default).
+3. **Actions > Test Search**, then read the Lua tab. Expect a line such as
+   `Shield Bridge search OK: 5 results for "Severance" in US` followed by each
+   title and the installed apps that carry it.
+4. Refresh Navigators. Tap the magnifier in Shield Bridge, or use the Search
+   tab's **Show results here** button.
+
+Behaviour worth knowing:
+
+- Only what streams in your country is shown, and each result names the
+  installed Shield app that plays it. *Search Includes* adds add-ons or
+  rent/buy; the default is subscription and free only.
+- Tapping a title already in Continue Watching resumes it exactly. Otherwise
+  the title opens in its app: movies usually start playing, series open on the
+  show's page so you pick the episode.
+- If an app refuses the link, the driver opens the app instead.
+- Results are cached for ten minutes per search to stretch the free quota.
+
 ## 4. Daily use
 
 - Watch > Shield Bridge > **Continue Watching**. Tap a show. The room switches

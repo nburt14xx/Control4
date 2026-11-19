@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.5"
+DRIVER_VERSION = "0.2.0"
 
 MSP_PROXY = 5001          -- media_service proxy binding
 VIDEO_IN_BINDING = 1001   -- the Shield's HDMI output is bound here
@@ -1080,6 +1080,525 @@ function ReceivedFromProxy(idBinding, strCommand, tParams)
 end
 
 -------------------------------------------------------------------------------
+-- In-Control4 search (Streaming Availability API by Movie of the Night)
+--
+-- The streaming apps expose no search API, so titles come from a public
+-- availability database scoped to one country. Each result lists which of the
+-- apps installed on the Shield carry it; tapping plays it there, resuming from
+-- Continue Watching when the title is already in progress.
+-------------------------------------------------------------------------------
+
+SEARCH_CACHE_SECS = 600
+
+-- Android TV packages for the API's service ids. Only used to pick which
+-- installed app opens a result; anything missing here is matched by name
+-- against the apps the Shield reports.
+SERVICE_PACKAGES = {
+	netflix = { 'com.netflix.ninja' },
+	prime = { 'com.amazon.amazonvideo.livingroom' },
+	disney = { 'com.disney.disneyplus' },
+	hbo = { 'com.wbd.stream', 'com.hbo.hbonow' },
+	hulu = { 'com.hulu.livingroomplus', 'com.hulu.plus' },
+	peacock = { 'com.peacocktv.peacockandroid' },
+	paramount = { 'com.cbs.ott', 'com.cbs.app' },
+	apple = { 'com.apple.atve.androidtv.appletv' },
+	starz = { 'com.bydeluxe.d3.android.program.starz' },
+	tubi = { 'com.tubitv' },
+	plutotv = { 'tv.pluto.android' },
+	crunchyroll = { 'com.crunchyroll.crunchyroid' },
+	mubi = { 'com.mubi' },
+}
+
+-- Other names a service's app may carry on the Shield (normalised form).
+SERVICE_ALIASES = {
+	hbo = { 'max', 'hbomax' },
+	apple = { 'appletv' },
+	prime = { 'primevideo', 'amazonprimevideo' },
+	disney = { 'disney' },
+	paramount = { 'paramount' },
+	plutotv = { 'pluto', 'plutotv' },
+}
+
+Finder = Finder or { cache = {}, cacheOrder = {}, shows = {}, showCount = 0, lastQuery = {}, lastShow = {} }
+
+-- "Disney+", "Disney Plus" and "disney" all become "disney".
+function NormName(s)
+	s = tostring(s or ''):lower():gsub('%+', ''):gsub('[^%w]', '')
+	s = s:gsub('plus$', '')
+	return s
+end
+
+function SearchCountry()
+	local c = trim(Properties['Search Country']):lower():gsub('[^a-z]', '')
+	if (#c ~= 2) then c = 'us' end
+	return c
+end
+
+function SearchApiConfig()
+	local key = trim(Properties['Search API Key'])
+	if (key == '') then return nil end
+	if ((Properties['Search API Service'] or '') == 'RapidAPI') then
+		return {
+			base = 'https://streaming-availability.p.rapidapi.com',
+			headers = { ['X-RapidAPI-Key'] = key, ['X-RapidAPI-Host'] = 'streaming-availability.p.rapidapi.com' },
+		}
+	end
+	return { base = 'https://api.movieofthenight.com/v4', headers = { ['X-API-Key'] = key } }
+end
+
+-- callback(err, data, code). err is 'no_key', 'key_rejected', 'quota' or text.
+function SearchApiGet(path, callback)
+	local cfg = SearchApiConfig()
+	if (not cfg) then
+		callback('no_key')
+		return
+	end
+	local url = cfg.base .. path
+	dbg('SEARCH GET ' .. url)
+	local function handle(ticketId, strData, responseCode, tHeaders, strError)
+		strData = strData or ''
+		local code = tonumber(responseCode) or 0
+		if (strError and strError ~= '') then
+			callback('search service unreachable: ' .. tostring(strError), nil, code)
+			return
+		end
+		local data, derr = nil, nil
+		if (strData:match('^%s*[%[{]')) then data, derr = JSON.decode(strData) end
+		if (code == 401 or code == 403) then callback('key_rejected', data, code) return end
+		if (code == 429) then callback('quota', data, code) return end
+		if (code < 200 or code >= 300) then
+			local msg = 'search service HTTP ' .. code
+			if (type(data) == 'table' and data.message) then msg = msg .. ': ' .. tostring(data.message) end
+			callback(msg, data, code)
+			return
+		end
+		if (data == nil) then
+			callback('bad reply from search service: ' .. tostring(derr), nil, code)
+			return
+		end
+		callback(nil, data, code)
+	end
+	local ok, e = pcall(function() C4:urlGet(url, cfg.headers, false, handle) end)
+	if (not ok) then callback('search request failed: ' .. tostring(e)) end
+end
+
+function SearchErrorText(err)
+	if (err == 'no_key') then return 'Add a Search API Key in Composer to see results here' end
+	if (err == 'key_rejected') then return 'The search service rejected the API key; check it in Composer' end
+	if (err == 'quota') then return 'Search limit reached for now; try again later' end
+	return tostring(err)
+end
+
+function RememberShows(shows)
+	if (Finder.showCount > 400) then
+		-- keep memory bounded: start over from what is still cached
+		Finder.shows, Finder.showCount = {}, 0
+		for _, key in ipairs(Finder.cacheOrder) do
+			for _, s in ipairs(Finder.cache[key].shows) do
+				if (s.id and not Finder.shows[tostring(s.id)]) then
+					Finder.shows[tostring(s.id)] = s
+					Finder.showCount = Finder.showCount + 1
+				end
+			end
+		end
+	end
+	for _, s in ipairs(shows) do
+		if (s.id and not Finder.shows[tostring(s.id)]) then Finder.showCount = Finder.showCount + 1 end
+		if (s.id) then Finder.shows[tostring(s.id)] = s end
+	end
+end
+
+-- callback(err, shows). Results are cached per country/type/query to spare
+-- the API quota, since Navigator re-requests a list every time it is shown.
+function FinderSearch(query, filter, callback)
+	query = trim(query)
+	local country = SearchCountry()
+	local showType = (filter == 'movie' or filter == 'series') and filter or nil
+	local key = country .. '|' .. tostring(showType) .. '|' .. query:lower()
+	local hit = Finder.cache[key]
+	if (hit and (os.time() - hit.at) < SEARCH_CACHE_SECS) then
+		callback(nil, hit.shows)
+		return
+	end
+	local path = '/shows/search/title?title=' .. URLEncode(query) .. '&country=' .. country ..
+		'&series_granularity=show&output_language=en'
+	if (showType) then path = path .. '&show_type=' .. showType end
+	SearchApiGet(path, function(err, data)
+		if (err) then
+			callback(err)
+			return
+		end
+		if (type(data) ~= 'table') then
+			callback('unexpected reply from search service')
+			return
+		end
+		if (not Finder.cache[key]) then table.insert(Finder.cacheOrder, key) end
+		Finder.cache[key] = { at = os.time(), shows = data }
+		while (#Finder.cacheOrder > 30) do
+			Finder.cache[table.remove(Finder.cacheOrder, 1)] = nil
+		end
+		RememberShows(data)
+		callback(nil, data)
+	end)
+end
+
+-- Which installed Shield app opens a service: known package first, then name.
+function ResolveServiceApp(serviceId, serviceName)
+	local apps = Bridge.appsByPackage or {}
+	for _, pkg in ipairs(SERVICE_PACKAGES[serviceId] or {}) do
+		if (apps[pkg]) then return pkg, apps[pkg].label end
+	end
+	local wanted = {}
+	wanted[NormName(serviceName)] = true
+	wanted[NormName(serviceId)] = true
+	for _, a in ipairs(SERVICE_ALIASES[serviceId] or {}) do wanted[a] = true end
+	wanted[''] = nil
+	local best = nil
+	for pkg, app in pairs(apps) do
+		if (wanted[NormName(app.label)]) then
+			if (not best or pkg < best) then best = pkg end  -- deterministic
+		end
+	end
+	if (best) then return best, apps[best].label end
+	return nil
+end
+
+function SearchTypeAllowed(t)
+	local mode = Properties['Search Includes'] or 'Subscription and free'
+	if (t == 'subscription' or t == 'free') then return true end
+	if (t == 'addon') then return mode ~= 'Subscription and free' end
+	if (t == 'rent' or t == 'buy') then return mode == 'Everything (incl. rent/buy)' end
+	return false
+end
+
+-- One entry per service and offer type for our country, best quality kept,
+-- split into ones an installed app can play and ones it cannot.
+function ShowOptions(show)
+	local raw = (type(show.streamingOptions) == 'table' and show.streamingOptions[SearchCountry()]) or {}
+	local QRANK = { sd = 1, hd = 2, qhd = 3, uhd = 4 }
+	local byKey, order = {}, {}
+	for _, o in ipairs(raw) do
+		local svc = o.service or {}
+		if (svc.id and SearchTypeAllowed(o.type)) then
+			local key = svc.id .. '|' .. tostring(o.type) .. '|' .. tostring(o.addon and o.addon.id or '')
+			local cur = byKey[key]
+			if (not cur) then
+				table.insert(order, key)
+				byKey[key] = o
+			elseif ((QRANK[o.quality] or 0) > (QRANK[cur.quality] or 0)) then
+				byKey[key] = o
+			end
+		end
+	end
+	local TRANK = { subscription = 1, free = 2, addon = 3, rent = 4, buy = 5 }
+	local playable, missing = {}, {}
+	for i, key in ipairs(order) do
+		local o = byKey[key]
+		local pkg, label = ResolveServiceApp(o.service.id, o.service.name)
+		local e = { opt = o, package = pkg, appLabel = label, serviceId = o.service.id,
+			serviceName = o.service.name or o.service.id, rank = (TRANK[o.type] or 9) * 100 + i }
+		table.insert(pkg and playable or missing, e)
+	end
+	table.sort(playable, function(a, b) return a.rank < b.rank end)
+	table.sort(missing, function(a, b) return a.rank < b.rank end)
+	return playable, missing
+end
+
+function FindResumeRow(show, pkg)
+	if (not pkg) then return nil end
+	local want = NormName(show.title)
+	if (want == '') then return nil end
+	for _, item in ipairs(Bridge.items or {}) do
+		if (item.package == pkg and NormName(item.title) == want) then return item end
+	end
+	return nil
+end
+
+function ShowPoster(show)
+	local set = (type(show.imageSet) == 'table') and show.imageSet or {}
+	local v = set.verticalPoster or {}
+	if (v.w240 or v.w360) then return (v.w240 or v.w360), 240, 360 end
+	local h = set.horizontalPoster or {}
+	if (h.w360 or h.w480) then return (h.w360 or h.w480), 360, 203 end
+	return nil
+end
+
+local function uniqueNames(entries, field, limit)
+	local names, seen = {}, {}
+	for _, e in ipairs(entries) do
+		local n = e[field] or e.serviceName
+		if (n and not seen[n]) then
+			seen[n] = true
+			table.insert(names, n)
+		end
+	end
+	local s = table.concat(names, ', ', 1, math.min(#names, limit))
+	if (#names > limit) then s = s .. ' +' .. (#names - limit) end
+	return s
+end
+
+-- "2024 · Series · Netflix, Max"
+function ShowSubtitle(show, playable, missing)
+	local parts = {}
+	local year = show.releaseYear or show.firstAirYear
+	if (year) then table.insert(parts, tostring(year)) end
+	table.insert(parts, show.showType == 'series' and 'Series' or 'Movie')
+	if (#playable > 0) then
+		table.insert(parts, uniqueNames(playable, 'appLabel', 3))
+	elseif (#missing > 0) then
+		table.insert(parts, 'On ' .. uniqueNames(missing, 'serviceName', 2) .. ' (app not on Shield)')
+	else
+		table.insert(parts, 'Not streaming in ' .. SearchCountry():upper())
+	end
+	return table.concat(parts, ' \194\183 ')
+end
+
+function ShowItemXml(show, playable, missing, actionable)
+	local x = { '<item>' }
+	table.insert(x, XMLTag('id', show.id))
+	table.insert(x, XMLTag('title', show.title or '?'))
+	table.insert(x, XMLTag('subtitle', ShowSubtitle(show, playable, missing)))
+	local url, w, h = ShowPoster(show)
+	if (url) then
+		table.insert(x, '<image_list width="' .. w .. '" height="' .. h .. '">' .. XMLEncode(url) .. '</image_list>')
+	end
+	if (actionable) then
+		table.insert(x, '<default_action>SearchPick</default_action>')
+		if (#playable > 1) then table.insert(x, '<isLink>true</isLink>') end
+	end
+	table.insert(x, '</item>')
+	return table.concat(x)
+end
+
+function BuildSearchResultsList(query, shows, notice)
+	local x = { '<List>' }
+	if (notice) then table.insert(x, HeaderXml(notice)) end
+	local avail, unavail = {}, {}
+	for _, show in ipairs(shows or {}) do
+		local playable, missing = ShowOptions(show)
+		table.insert((#playable > 0) and avail or unavail, { show, playable, missing })
+	end
+	for _, r in ipairs(avail) do table.insert(x, ShowItemXml(r[1], r[2], r[3], true)) end
+	if (#unavail > 0 and (Properties['Show Titles Not On Shield'] or 'Yes') == 'Yes') then
+		table.insert(x, HeaderXml("Not on your Shield's apps"))
+		for _, r in ipairs(unavail) do table.insert(x, ShowItemXml(r[1], r[2], r[3], false)) end
+	end
+	if (not notice and #avail == 0 and #unavail == 0) then
+		table.insert(x, '<item>' .. XMLTag('title', 'No matches for "' .. query .. '"') ..
+			XMLTag('subtitle', 'Searched what streams in ' .. SearchCountry():upper()) .. '</item>')
+	end
+	table.insert(x, '<item>' .. XMLTag('id', 'tvsearch') .. XMLTag('title', 'Search "' .. query .. '" on the TV') ..
+		XMLTag('subtitle', "Opens the Shield's own search") .. '<default_action>SearchOnTv</default_action></item>')
+	table.insert(x, '</List>')
+	return table.concat(x)
+end
+
+function OptionDescription(opt)
+	local parts = {}
+	local t = opt.type
+	local price = (type(opt.price) == 'table' and opt.price.formatted) and (' ' .. opt.price.formatted) or ''
+	if (t == 'subscription') then table.insert(parts, 'Included with subscription')
+	elseif (t == 'free') then table.insert(parts, 'Free')
+	elseif (t == 'addon') then table.insert(parts, ((type(opt.addon) == 'table' and opt.addon.name) or 'Add-on') .. ' add-on')
+	elseif (t == 'rent') then table.insert(parts, 'Rent' .. price)
+	elseif (t == 'buy') then table.insert(parts, 'Buy' .. price)
+	end
+	local Q = { uhd = '4K', qhd = 'QHD', hd = 'HD', sd = 'SD' }
+	if (opt.quality and Q[opt.quality]) then table.insert(parts, Q[opt.quality]) end
+	if (opt.expiresSoon == true) then table.insert(parts, 'Leaving soon') end
+	return table.concat(parts, ' \194\183 ')
+end
+
+-- Netflix's TV app only jumps to a specific title when the link has source=30.
+function TweakServiceUrl(serviceId, url)
+	url = tostring(url or ''):gsub('#.*$', '')
+	if (serviceId == 'netflix' and url:find('netflix%.com/title/') and not url:find('source=', 1, true)) then
+		url = url .. (url:find('?', 1, true) and '&' or '?') .. 'source=30'
+	end
+	return url
+end
+
+-- Pins a web link to one app, so Android cannot hand it to a browser.
+function UrlToAppIntent(url, pkg)
+	local scheme, rest = tostring(url):match('^(%a[%w+.-]*)://(.+)$')
+	if (not scheme or not pkg) then return nil end
+	return 'intent://' .. rest .. '#Intent;scheme=' .. scheme .. ';package=' .. pkg ..
+		';action=android.intent.action.VIEW;end'
+end
+
+-- Opens the title in the app; if the app refuses the link, opens the app.
+function LaunchShowOption(show, e, roomId)
+	local opt = e.opt
+	local url = opt.link
+	-- A movie's videoLink starts the film; for series the title page is safer
+	-- than a link that might start episode one.
+	if (show.showType == 'movie' and opt.videoLink and opt.videoLink ~= '') then url = opt.videoLink end
+	url = TweakServiceUrl(e.serviceId, url)
+	local display = { title = show.title or '', subtitle = e.appLabel or e.serviceName,
+		app = e.appLabel or e.serviceName, art = ShowPoster(show), id = 'search:' .. tostring(show.id) }
+	local intentUri = UrlToAppIntent(url, e.package)
+	local target = intentUri and { intentUri = intentUri } or { package = e.package }
+	LaunchOnShield(target, display, roomId, function(ok, err)
+		if (ok or not intentUri) then return end
+		print('Shield Bridge: ' .. tostring(e.appLabel or e.serviceName) .. ' would not open that title (' ..
+			tostring(err) .. '); opening the app instead')
+		LaunchOnShield({ package = e.package }, display, roomId)
+	end)
+end
+
+-- Prefers an in-progress Continue Watching row, which resumes exactly.
+function PlayShowOption(show, e, roomId, preferResume)
+	if (preferResume) then
+		local row = FindResumeRow(show, e.package)
+		if (row) then
+			LaunchItemById(row.id, roomId)
+			return 'resume'
+		end
+	end
+	LaunchShowOption(show, e, roomId)
+	return 'title'
+end
+
+local SearchHistoryMax = 10
+
+function PushSearchHistory(q)
+	q = trim(q)
+	if (q == '') then return end
+	local hist = (type(PersistData.searchHistory) == 'table') and PersistData.searchHistory or {}
+	local out = { q }
+	for _, h in ipairs(hist) do
+		if (h:lower() ~= q:lower() and #out < SearchHistoryMax) then table.insert(out, h) end
+	end
+	PersistData.searchHistory = out
+end
+
+-- Native search box, empty: recent searches as suggestions.
+function RFP.GetSearchHistory(tParams, args, idBinding)
+	local items = {}
+	for _, h in ipairs((type(PersistData.searchHistory) == 'table') and PersistData.searchHistory or {}) do
+		table.insert(items, '<item>' .. XMLTag('name', h) .. '</item>')
+	end
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '<List>' .. table.concat(items) .. '</List>')
+end
+
+-- Results list. Reached from the native search box (query in args.search) or
+-- from the Search tab's "Show results here" button (query typed there).
+function RFP.SearchResults(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local query = trim(args.search)
+	if (query == '') then query = trim(PersistData.searchQuery) end
+	if (query == '') then
+		DataReceived(idBinding, navId, seq, '<List></List>')
+		return
+	end
+	Finder.lastQuery[tostring(navId)] = query
+	PushSearchHistory(query)
+
+	local function run(appsErr)
+		FinderSearch(query, args.search_filter, function(err, shows)
+			if (err) then
+				local text = SearchErrorText(err)
+				C4:UpdateProperty('Search Status', text)
+				DataReceived(idBinding, navId, seq, BuildSearchResultsList(query, {}, text))
+				return
+			end
+			C4:UpdateProperty('Search Status', string.format('OK: %d results for "%s" in %s', #shows, query, SearchCountry():upper()))
+			local notice = appsErr and 'Shield Bridge offline: cannot tell which apps are installed' or nil
+			DataReceived(idBinding, navId, seq, BuildSearchResultsList(query, shows, notice))
+		end)
+	end
+
+	-- installed apps decide what is playable, so make sure we know them
+	if (#(Bridge.apps or {}) == 0) then
+		FetchApps(function(err) run(err) end)
+	else
+		run(nil)
+	end
+end
+
+function RFP.SearchPick(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local id = tostring(args.id or '')
+	local show = Finder.shows[id]
+	if (not show) then
+		DataReceivedError(idBinding, navId, seq, 'That result has expired; search again')
+		return
+	end
+	local playable = ShowOptions(show)
+	if (#playable == 0) then
+		DataReceived(idBinding, navId, seq, '')
+		return
+	end
+	Finder.lastShow[tostring(navId)] = id
+	if (#playable == 1) then
+		PlayShowOption(show, playable[1], tParams.ROOMID, true)
+		DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+		return
+	end
+	DataReceived(idBinding, navId, seq, '<NextScreen>WhereToWatchScreen</NextScreen>')
+end
+
+function RFP.GetWhereToWatch(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local id = tostring(args.id or '')
+	if (not Finder.shows[id]) then id = tostring(Finder.lastShow[tostring(navId)] or '') end
+	local show = Finder.shows[id]
+	if (not show) then
+		DataReceivedError(idBinding, navId, seq, 'That result has expired; search again')
+		return
+	end
+	local playable = ShowOptions(show)
+	local x = { '<List>', HeaderXml(show.title or '') }
+	local resumed = {}
+	for i, e in ipairs(playable) do
+		local row = FindResumeRow(show, e.package)
+		if (row and not resumed[e.package]) then
+			resumed[e.package] = true
+			table.insert(x, '<item>' .. XMLTag('id', id .. '|r' .. i) ..
+				XMLTag('title', 'Resume in ' .. tostring(e.appLabel or e.serviceName)) ..
+				XMLTag('subtitle', ItemSubtitle(row)) .. '<default_action>SearchPlay</default_action></item>')
+		end
+	end
+	for i, e in ipairs(playable) do
+		table.insert(x, '<item>' .. XMLTag('id', id .. '|' .. i) ..
+			XMLTag('title', tostring(e.appLabel or e.serviceName)) ..
+			XMLTag('subtitle', OptionDescription(e.opt)) .. '<default_action>SearchPlay</default_action></item>')
+	end
+	table.insert(x, '</List>')
+	DataReceived(idBinding, navId, seq, table.concat(x))
+end
+
+function RFP.SearchPlay(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local showId, tag = tostring(args.id or ''):match('^(.*)|(r?%d+)$')
+	local show = showId and Finder.shows[showId]
+	local resume = tag and tag:sub(1, 1) == 'r'
+	local idx = tag and tonumber((tag:gsub('r', '')))
+	local e = show and idx and ShowOptions(show)[idx]
+	if (not e) then
+		DataReceivedError(idBinding, navId, seq, 'That result has expired; search again')
+		return
+	end
+	PlayShowOption(show, e, tParams.ROOMID, resume)
+	DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+end
+
+function RFP.SearchOnTv(tParams, args, idBinding)
+	local q = Finder.lastQuery[tostring(tParams.NAVID)] or PersistData.searchQuery or ''
+	if (trim(q) ~= '') then DoSearch(q, 'global', nil) end
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
+end
+
+-- Search tab button: show the typed query's results inside Control4.
+function RFP.SearchHere(tParams, args, idBinding)
+	if (trim(PersistData.searchQuery) == '') then
+		DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
+		return
+	end
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '<NextScreen>SearchResultsScreen</NextScreen>')
+end
+
+-------------------------------------------------------------------------------
 -- Programming: commands, actions, custom selects
 -------------------------------------------------------------------------------
 
@@ -1158,6 +1677,29 @@ function EC.Test_Connection(tParams)
 	FetchApps(nil)
 end
 
+function EC.Test_Search(tParams)
+	local q = trim(tParams.Query)
+	if (q == '') then q = 'Severance' end
+	FetchApps(function()
+		FinderSearch(q, nil, function(err, shows)
+			if (err) then
+				local text = SearchErrorText(err)
+				print('Shield Bridge search: ' .. text)
+				C4:UpdateProperty('Search Status', text)
+				return
+			end
+			local status = string.format('OK: %d results for "%s" in %s', #shows, q, SearchCountry():upper())
+			print('Shield Bridge search ' .. status)
+			C4:UpdateProperty('Search Status', status)
+			for i = 1, math.min(#shows, 6) do
+				local show = shows[i]
+				local playable, missing = ShowOptions(show)
+				print('  ' .. tostring(show.title) .. '  ->  ' .. ShowSubtitle(show, playable, missing))
+			end
+		end)
+	end)
+end
+
 -- CUSTOM_SELECT providers for programming parameters. These are synchronous
 -- so they serve the cache that the refresh timer keeps warm.
 function ContinueSelect(currentValue)
@@ -1214,6 +1756,20 @@ end
 
 function OPC.Refresh_Interval_s(value)
 	StartRefreshTimer()
+end
+
+local function clearSearchCache()
+	Finder.cache, Finder.cacheOrder = {}, {}
+end
+OPC.Search_API_Key = clearSearchCache
+OPC.Search_API_Service = clearSearchCache
+
+function OPC.Search_Country(value)
+	clearSearchCache()
+	local c = trim(value):lower():gsub('[^a-z]', '')
+	if (trim(value) ~= '' and #c ~= 2) then
+		C4:UpdateProperty('Search Status', 'Search Country should be a two-letter code like us, ca or gb; using us')
+	end
 end
 
 function OPC.Shield_MAC_Address(value)

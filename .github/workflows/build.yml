@@ -14,7 +14,9 @@ jobs:
       - name: Install Lua 5.1
         run: sudo apt-get update -q && sudo apt-get install -y -q lua5.1
       - name: Run driver tests
-        run: lua5.1 control4/test/test_driver.lua
+        run: |
+          lua5.1 control4/test/test_driver.lua
+          lua5.1 control4/test/test_search.lua
       - name: Package c4z
         run: python3 control4/tools/build_c4z.py --out dist/shield_bridge.c4z
       - uses: actions/upload-artifact@v4

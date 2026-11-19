@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>6</version>
+  <version>7</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -144,6 +144,65 @@
         <tooltip>How often the driver refreshes its cached list for programming (keypad buttons). 0 disables background refresh.</tooltip>
       </property>
       <property>
+        <name>Search</name>
+        <type>LABEL</type>
+        <default>Search</default>
+      </property>
+      <property>
+        <name>Search API Key</name>
+        <type>STRING</type>
+        <default />
+        <password>true</password>
+        <readonly>false</readonly>
+        <tooltip>Free key from Movie of the Night (docs.movieofthenight.com, Authentication guide) or from RapidAPI. Needed for search results inside Control4.</tooltip>
+      </property>
+      <property>
+        <name>Search API Service</name>
+        <type>LIST</type>
+        <items>
+          <item>Movie of the Night</item>
+          <item>RapidAPI</item>
+        </items>
+        <default>Movie of the Night</default>
+        <readonly>false</readonly>
+        <tooltip>Where the Search API Key came from.</tooltip>
+      </property>
+      <property>
+        <name>Search Country</name>
+        <type>STRING</type>
+        <default>us</default>
+        <readonly>false</readonly>
+        <tooltip>Two-letter country code (us, ca, gb ...). Results only include what streams in this country.</tooltip>
+      </property>
+      <property>
+        <name>Search Includes</name>
+        <type>LIST</type>
+        <items>
+          <item>Subscription and free</item>
+          <item>Plus add-ons</item>
+          <item>Everything (incl. rent/buy)</item>
+        </items>
+        <default>Subscription and free</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Show Titles Not On Shield</name>
+        <type>LIST</type>
+        <items>
+          <item>Yes</item>
+          <item>No</item>
+        </items>
+        <default>Yes</default>
+        <readonly>false</readonly>
+        <tooltip>Also list matches that only stream on services whose app is not installed on the Shield, under their own heading.</tooltip>
+      </property>
+      <property>
+        <name>Search Status</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+      <property>
         <name>Driver</name>
         <type>LABEL</type>
         <default>Driver</default>
@@ -251,6 +310,10 @@
       <action>
         <name>Test Connection</name>
         <command>Test Connection</command>
+      </action>
+      <action>
+        <name>Test Search</name>
+        <command>Test Search</command>
       </action>
       <action>
         <name>Refresh Lists</name>
@@ -489,6 +552,38 @@
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_search/nav_search_140.png</Icon>
         </IconGroup>
       </Icons>
+      <Search>
+        <Filters>
+          <SearchFilter>
+            <Id>all</Id>
+            <Name>All</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+          <SearchFilter>
+            <Id>movie</Id>
+            <Name>Movies</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+          <SearchFilter>
+            <Id>series</Id>
+            <Name>Series</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+        </Filters>
+        <History>
+          <DataCommand>
+            <Name>GetSearchHistory</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>filter</Name>
+                <Type>SEARCH_FILTER</Type>
+              </Param>
+            </Params>
+          </DataCommand>
+          <TextProperty>name</TextProperty>
+        </History>
+      </Search>
       <Tabs>
         <Tab>
           <Id>Continue</Id>
@@ -639,7 +734,7 @@
             <TextField propertyName="SearchQuery" />
           </Item>
           <Item>
-            <Label>In</Label>
+            <Label>TV search in</Label>
             <ComboBox propertyName="SearchTarget">
               <Item>
                 <Id>global</Id>
@@ -657,13 +752,112 @@
           </Item>
           <Item>
             <Button>
-              <Name>Search</Name>
+              <Name>Show results here</Name>
+              <Command>
+                <Name>SearchHere</Name>
+                <Type>PROTOCOL</Type>
+              </Command>
+            </Button>
+          </Item>
+          <Item>
+            <Button>
+              <Name>Search on TV</Name>
               <Command>
                 <Name>SearchGo</Name>
                 <Type>PROTOCOL</Type>
               </Command>
             </Button>
           </Item>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>SearchResultsScreen</Id>
+          <DataCommand>
+            <Name>SearchResults</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>search</Name>
+                <Type>SEARCH</Type>
+              </Param>
+              <Param>
+                <Name>search_filter</Name>
+                <Type>SEARCH_FILTER</Type>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>WhereToWatchScreen</Id>
+          <DataCommand>
+            <Name>GetWhereToWatch</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
         </Screen>
       </Screens>
       <NowPlaying>
@@ -853,6 +1047,66 @@
           <Command>
             <Name>HOME</Name>
             <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchPick</Id>
+          <Name>Watch</Name>
+          <Command>
+            <Name>SearchPick</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchPlay</Id>
+          <Name>Play</Name>
+          <Command>
+            <Name>SearchPlay</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchOnTv</Id>
+          <Name>Search on TV</Name>
+          <Command>
+            <Name>SearchOnTv</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
           </Command>
         </Action>
       </Actions>
