@@ -104,6 +104,13 @@ Behaviour worth knowing:
   Shield Bridge relays them to the Shield Control Device.
 - The **Remote** tab is an on-screen remote, and the Now Playing bar has
   rewind, play, pause and fast forward.
+- **Shield Bridge Remote** is a second device in the room's Watch list: the
+  standard Control4 remote screen with D-pad, transport, menu and number keys.
+  Its keys are relayed to the Shield Control Device too. It needs no wiring:
+  it feeds Shield Bridge internally. Set *After Launch* to **Switch to Remote**
+  to land on it automatically after starting a show. Control4 does not draw
+  artwork on this screen type, so the poster stays on Shield Bridge's own Now
+  Playing.
 
 ### One physical button
 

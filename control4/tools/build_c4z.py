@@ -52,7 +52,7 @@ def check(driver_dir, driver_name):
             problems.append("referenced icon missing: %s" % m.group(2))
 
     for proxy in root.findall("./proxies/proxy"):
-        if proxy.text != "media_service":
+        if proxy.text not in ("media_service", "media_player"):
             problems.append("unexpected proxy type %s" % proxy.text)
 
     luac = shutil.which("luac5.1") or shutil.which("luac")

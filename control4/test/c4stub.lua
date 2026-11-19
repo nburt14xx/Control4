@@ -99,7 +99,12 @@ end
 function C4:GetProxyDevices() return stub.proxyDeviceId end
 function C4:GetDeviceID() return stub.deviceId end
 function C4:GetBoundProviderDevice(deviceId, idBinding) return stub.boundProvider[idBinding] end
-function C4:GetBoundConsumerDevices(deviceId, idBinding) return { [999] = "TV" } end
+stub.proxyIds = { [5001] = 777, [5002] = 780 }
+function C4:GetBoundConsumerDevices(deviceId, idBinding)
+	local id = stub.proxyIds[tonumber(idBinding)]
+	if (id) then return { [id] = 'proxy' } end
+	return { [999] = "TV" }
+end
 function C4:GetDriverConfigInfo(tag) return "0.1.0" end
 function C4:GetControllerNetworkAddress() return "192.168.1.2" end
 

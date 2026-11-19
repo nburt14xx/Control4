@@ -13,9 +13,10 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.3.0"
+DRIVER_VERSION = "0.4.0"
 
-MSP_PROXY = 5001          -- media_service proxy binding
+MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
+REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
 
 DEFAULT_BRIDGE_PORT = 8765
 
@@ -584,6 +585,21 @@ function WakeShield()
 	BridgeRequest('POST', '/api/wake', {}, nil)
 end
 
+-- Device id of the proxy on one of this driver's proxy bindings. With two
+-- proxies, C4:GetProxyDevices() is not specific enough, so ask the binding.
+ProxyIds = ProxyIds or {}
+function ProxyIdFor(binding)
+	if (ProxyIds[binding]) then return ProxyIds[binding] end
+	local ok, t = pcall(function() return C4:GetBoundConsumerDevices(C4:GetDeviceID(), binding) end)
+	local id = nil
+	if (ok and type(t) == 'table') then id = tonumber((next(t))) end
+	if (not id and binding == MSP_PROXY) then
+		id = tonumber(tostring(C4:GetProxyDevices() or ''):match('(%d+)'))
+	end
+	ProxyIds[binding] = id
+	return id
+end
+
 -- Room variable 1000 holds the proxy device id of the room's current source.
 function RoomCurrentDevice(roomId)
 	local ok, v = pcall(function() return C4:GetDeviceVariable(roomId, 1000) end)
@@ -602,7 +618,7 @@ function SelectInRoom(roomId)
 	roomId = tonumber(roomId)
 	if (not roomId or roomId == 0) then return end
 	if ((Properties['Select Room Source'] or 'Never') ~= 'Select Shield Bridge') then return end
-	local targetId = C4:GetProxyDevices()
+	local targetId = ProxyIdFor(MSP_PROXY)
 	local current = RoomCurrentDevice(roomId)
 	if (current and current == targetId) then
 		dbg('room ' .. roomId .. ' already on Shield Bridge; not re-selecting')
@@ -725,7 +741,7 @@ function ResolveShieldDevice()
 	end
 	if (not id or id <= 0) then return nil end
 	-- never relay to ourselves: that would loop
-	if (id == C4:GetProxyDevices() or id == C4:GetDeviceID()) then return nil end
+	if (id == ProxyIdFor(MSP_PROXY) or id == ProxyIdFor(REMOTE_PROXY) or id == C4:GetDeviceID()) then return nil end
 	return id
 end
 
@@ -849,8 +865,24 @@ function RFP.GetApps(tParams, args, idBinding)
 	end)
 end
 
-function AfterLaunchScreen()
-	if ((Properties['After Launch'] or 'Go to Now Playing') == 'Go to Now Playing') then
+-- What Navigator does after a launch. "Switch to Remote" moves the room to
+-- this driver's standard remote screen; both screens share one video path to
+-- the TV/AVR, so it is a source change, not a power-up.
+function AfterLaunchScreen(roomId)
+	local mode = Properties['After Launch'] or 'Go to Now Playing'
+	if (mode == 'Switch to Remote') then
+		roomId = tonumber(roomId)
+		local remoteId = ProxyIdFor(REMOTE_PROXY)
+		if (roomId and roomId ~= 0 and remoteId) then
+			if (RoomCurrentDevice(roomId) ~= remoteId) then
+				dbg('switching room ' .. roomId .. ' to the remote screen ' .. remoteId)
+				C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = remoteId })
+			end
+			return ''
+		end
+		return '<NextScreen>#nowplaying</NextScreen>'
+	end
+	if (mode == 'Go to Now Playing') then
 		return '<NextScreen>#nowplaying</NextScreen>'
 	end
 	return ''
@@ -863,7 +895,7 @@ function RFP.LaunchItem(tParams, args, idBinding)
 		return
 	end
 	LaunchItemById(id, tParams.ROOMID)
-	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen())
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen(tParams.ROOMID))
 end
 
 function RFP.LaunchApp(tParams, args, idBinding)
@@ -873,7 +905,7 @@ function RFP.LaunchApp(tParams, args, idBinding)
 		return
 	end
 	LaunchPackage(pkg, tParams.ROOMID)
-	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen())
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen(tParams.ROOMID))
 end
 
 -- Room favorite creation: Navigator asks us to describe the selected item.
@@ -1073,6 +1105,25 @@ function ParseArgs(tParams)
 	return args
 end
 
+-- Commands from the standard remote screen (media_player proxy). Keys are
+-- relayed to the Shield Control Device exactly like the browse screen's.
+function HandleRemoteProxy(strCommand, tParams)
+	if (strCommand == 'ON' or strCommand == 'DEVICE_SELECTED') then
+		if ((Properties['Wake on Select'] or 'Off') == 'On') then WakeShield() end
+		return
+	end
+	if (strCommand == 'OFF' or strCommand == 'DEVICE_DESELECTED') then return end
+	if (strCommand == 'HOME') then
+		RFP.HOME(tParams, {}, REMOTE_PROXY)
+		return
+	end
+	if (FORWARDED_COMMANDS[strCommand]) then
+		ForwardToShield(strCommand, tParams)
+		return
+	end
+	dbg('remote screen: unhandled ' .. strCommand)
+end
+
 function ReceivedFromProxy(idBinding, strCommand, tParams)
 	strCommand = strCommand or ''
 	tParams = tParams or {}
@@ -1083,6 +1134,10 @@ function ReceivedFromProxy(idBinding, strCommand, tParams)
 		for k, v in pairs(tParams) do table.insert(out, '  ' .. tostring(k) .. ' = ' .. tostring(v)) end
 		for k, v in pairs(args) do table.insert(out, '  arg ' .. tostring(k) .. ' = ' .. tostring(v)) end
 		print(table.concat(out, '\n'))
+	end
+	if (idBinding == REMOTE_PROXY) then
+		HandleRemoteProxy(strCommand, tParams)
+		return
 	end
 	if (idBinding ~= MSP_PROXY) then return end
 
@@ -1562,7 +1617,7 @@ function RFP.SearchPick(tParams, args, idBinding)
 	Finder.lastShow[tostring(navId)] = id
 	if (#playable == 1) then
 		PlayShowOption(show, playable[1], tParams.ROOMID, true)
-		DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+		DataReceived(idBinding, navId, seq, AfterLaunchScreen(tParams.ROOMID))
 		return
 	end
 	DataReceived(idBinding, navId, seq, '<NextScreen>WhereToWatchScreen</NextScreen>')
@@ -1610,7 +1665,7 @@ function RFP.SearchPlay(tParams, args, idBinding)
 		return
 	end
 	PlayShowOption(show, e, tParams.ROOMID, resume)
-	DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+	DataReceived(idBinding, navId, seq, AfterLaunchScreen(tParams.ROOMID))
 end
 
 function RFP.SearchOnTv(tParams, args, idBinding)

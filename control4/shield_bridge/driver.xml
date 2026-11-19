@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>8</version>
+  <version>9</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -93,10 +93,12 @@
         <type>LIST</type>
         <items>
           <item>Go to Now Playing</item>
+          <item>Switch to Remote</item>
           <item>Stay on list</item>
         </items>
         <default>Go to Now Playing</default>
         <readonly>false</readonly>
+        <tooltip>What happens after starting a show. Switch to Remote moves the room to Shield Bridge Remote, the standard Control4 remote screen; the poster stays on Shield Bridge's own Now Playing.</tooltip>
       </property>
       <property>
         <name>Shield Control Device</name>
@@ -349,6 +351,30 @@
     <digital_audio_support>False</digital_audio_support>
     <ui_selects_device>True</ui_selects_device>
     <list_nowplaying_non_c4>True</list_nowplaying_non_c4>
+    <has_menu>True</has_menu>
+    <has_play>True</has_play>
+    <has_pause>True</has_pause>
+    <has_skip_fwd>True</has_skip_fwd>
+    <has_skip_rev>True</has_skip_rev>
+    <has_scan_fwd>True</has_scan_fwd>
+    <has_scan_rev>True</has_scan_rev>
+    <has_repeat>False</has_repeat>
+    <has_shuffle>False</has_shuffle>
+    <has_search>False</has_search>
+    <has_discrete_volume_control>False</has_discrete_volume_control>
+    <has_up_down_volume_control>False</has_up_down_volume_control>
+    <has_discrete_mute_control>False</has_discrete_mute_control>
+    <has_toggle_mute_control>False</has_toggle_mute_control>
+    <allow_audio_pathing>True</allow_audio_pathing>
+    <navigator_display_option proxybindingid="5002">
+      <display_icons>
+        <Icon width="70" height="70">controller://driver/shield_bridge/icons/device/experience_70.png</Icon>
+        <Icon width="90" height="90">controller://driver/shield_bridge/icons/device/experience_90.png</Icon>
+        <Icon width="300" height="300">controller://driver/shield_bridge/icons/device/experience_300.png</Icon>
+        <Icon width="512" height="512">controller://driver/shield_bridge/icons/device/experience_512.png</Icon>
+        <Icon width="1024" height="1024">controller://driver/shield_bridge/icons/device/experience_1024.png</Icon>
+      </display_icons>
+    </navigator_display_option>
     <navigator_display_option proxybindingid="5001">
       <display_icons>
         <Icon width="70" height="70">controller://driver/shield_bridge/icons/device/experience_70.png</Icon>
@@ -1332,8 +1358,9 @@
       <description>NAME lost contact with the Shield Bridge app</description>
     </event>
   </events>
-  <proxies qty="1">
+  <proxies qty="2">
     <proxy proxybindingid="5001" name="Shield Bridge" primary="True" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_service</proxy>
+    <proxy proxybindingid="5002" name="Shield Bridge Remote" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_player</proxy>
   </proxies>
   <connections>
     <connection>
@@ -1345,6 +1372,96 @@
       <classes>
         <class>
           <classname>MediaService</classname>
+        </class>
+      </classes>
+    </connection>
+    <connection>
+      <id>5002</id>
+      <type>2</type>
+      <connectionname>Shield Bridge Remote</connectionname>
+      <consumer>False</consumer>
+      <linelevel>False</linelevel>
+      <classes>
+        <class>
+          <classname>MEDIA_PLAYER</classname>
+        </class>
+      </classes>
+    </connection>
+    <!-- The remote screen feeds the browse screen internally (auto-bound, hidden),
+         so both share the browse screen's outputs to the TV/AVR. -->
+    <connection proxybindingid="5002">
+      <id>2002</id>
+      <type>5</type>
+      <connectionname>Remote Video Out</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <idautobind>10</idautobind>
+      <hidden>True</hidden>
+      <classes>
+        <class>
+          <classname>HDMI</classname>
+          <autobind>true</autobind>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5002">
+      <id>4002</id>
+      <type>6</type>
+      <connectionname>Remote Audio Out</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <idautobind>20</idautobind>
+      <hidden>True</hidden>
+      <classes>
+        <class>
+          <classname>STEREO</classname>
+          <autobind>true</autobind>
+        </class>
+        <class>
+          <classname>DIGITAL_COAX</classname>
+          <autobind>true</autobind>
+        </class>
+        <class>
+          <classname>DIGITAL_OPTICAL</classname>
+          <autobind>true</autobind>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5001">
+      <id>1002</id>
+      <type>5</type>
+      <connectionname>Video In from Remote</connectionname>
+      <consumer>True</consumer>
+      <linelevel>True</linelevel>
+      <idautobind>10</idautobind>
+      <hidden>True</hidden>
+      <classes>
+        <class>
+          <classname>HDMI</classname>
+          <autobind>true</autobind>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5001">
+      <id>3002</id>
+      <type>6</type>
+      <connectionname>Audio In from Remote</connectionname>
+      <consumer>True</consumer>
+      <linelevel>True</linelevel>
+      <idautobind>20</idautobind>
+      <hidden>True</hidden>
+      <classes>
+        <class>
+          <classname>STEREO</classname>
+          <autobind>true</autobind>
+        </class>
+        <class>
+          <classname>DIGITAL_COAX</classname>
+          <autobind>true</autobind>
+        </class>
+        <class>
+          <classname>DIGITAL_OPTICAL</classname>
+          <autobind>true</autobind>
         </class>
       </classes>
     </connection>

@@ -447,5 +447,68 @@ for _, r in ipairs(stub.urlRequests) do if (r.method == 'POST' and r.url:find('/
 check(pnf ~= nil, 'Search command launches a Netflix search')
 drain()
 
+------------------------------------------------------------------ standard remote screen (media_player proxy 5002)
+Properties['Shield Control Device'] = '4242'
+Properties['Shield Control Device ID'] = ''
+Properties['Forward Remote Commands'] = 'On'
+local nd = #stub.deviceMessages
+ReceivedFromProxy(5002, 'UP', {})
+local rk = stub.deviceMessages[#stub.deviceMessages]
+check(#stub.deviceMessages == nd + 1 and rk.device == 4242 and rk.command == 'UP', 'remote screen UP relayed to the Shield driver')
+ReceivedFromProxy(5002, 'START_SCAN_FWD', {})
+eq(stub.deviceMessages[#stub.deviceMessages].command, 'START_SCAN_FWD', 'held fast-forward relayed from the remote screen')
+ReceivedFromProxy(5002, 'NUMBER_4', {})
+eq(stub.deviceMessages[#stub.deviceMessages].command, 'NUMBER_4', 'number keys relayed from the remote screen')
+-- selecting the remote screen sends no room or power command; wake only if enabled
+Properties['Wake on Select'] = 'Off'
+nd = #stub.deviceMessages
+local nw = #stub.wol
+ReceivedFromProxy(5002, 'DEVICE_SELECTED', {})
+ReceivedFromProxy(5002, 'ON', {})
+ReceivedFromProxy(5002, 'OFF', {})
+eq(#stub.deviceMessages, nd, 'remote screen selection sends nothing to the room or the Shield driver')
+eq(#stub.wol, nw, 'no wake when Wake on Select is off')
+Properties['Wake on Select'] = 'On'
+ReceivedFromProxy(5002, 'DEVICE_SELECTED', {})
+eq(#stub.wol, nw + 1, 'wakes the Shield when Wake on Select is on')
+drain()
+Properties['Wake on Select'] = 'Off'
+-- the remote screen proxy is never a relay target
+Properties['Shield Control Device'] = '780'
+nd = #stub.deviceMessages
+ReceivedFromProxy(5002, 'UP', {})
+eq(#stub.deviceMessages, nd, 'refuses to relay to its own remote screen')
+Properties['Shield Control Device'] = '4242'
+-- unknown remote-screen commands are ignored
+nd = #stub.deviceMessages
+ReceivedFromProxy(5002, 'GET_COVERART', {})
+eq(#stub.deviceMessages, nd, 'unknown remote-screen command ignored')
+
+------------------------------------------------------------------ After Launch: Switch to Remote
+Properties['After Launch'] = 'Switch to Remote'
+stub.roomDevice[12] = stub.proxyDeviceId   -- room is on the browse screen
+Bridge.itemsById = Bridge.itemsById or {}
+ReceivedFromProxy(5001, 'LaunchApp', { NAVID = 'navX', SEQ = '90', ROOMID = '12', ARGS = '<params><param name="id">com.netflix.ninja</param></params>' })
+local sw
+for i = #stub.deviceMessages, 1, -1 do if (stub.deviceMessages[i].command == 'SELECT_VIDEO_DEVICE') then sw = stub.deviceMessages[i] break end end
+check(sw and sw.device == 12 and sw.params.deviceid == 780, 'room switched to the remote screen after launch')
+eq(stub.proxyMessages[#stub.proxyMessages].params.DATA, '', 'no Now Playing jump when switching to the remote')
+drain()
+-- already on the remote screen: no second select
+stub.roomDevice[12] = 780
+local nsel = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then nsel = nsel + 1 end end
+ReceivedFromProxy(5001, 'LaunchApp', { NAVID = 'navX', SEQ = '91', ROOMID = '12', ARGS = '<params><param name="id">com.netflix.ninja</param></params>' })
+local nsel2 = 0
+for _, m in ipairs(stub.deviceMessages) do if (m.command == 'SELECT_VIDEO_DEVICE') then nsel2 = nsel2 + 1 end end
+eq(nsel2, nsel, 'no re-select when the room is already on the remote screen')
+drain()
+-- launches from programming carry no navigator room: fall back to Now Playing
+eq(AfterLaunchScreen(nil), '<NextScreen>#nowplaying</NextScreen>', 'no room id: Now Playing instead of a switch')
+Properties['After Launch'] = 'Go to Now Playing'
+stub.roomDevice[12] = nil
+eq(ProxyIdFor(5001), 777, 'browse screen proxy id from its binding')
+eq(ProxyIdFor(5002), 780, 'remote screen proxy id from its binding')
+
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end
