@@ -1,0 +1,1231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devicedata>
+  <copyright>Open source, MIT licensed. See the repository README.</copyright>
+  <creator>Shield Bridge project</creator>
+  <manufacturer>Roku</manufacturer>
+  <name>Roku Bridge</name>
+  <model>Roku players and TVs - Search and Control</model>
+  <created>11/19/2026 12:00 AM</created>
+  <modified>11/19/2026 12:00 AM</modified>
+  <version>1</version>
+  <control>lua_gen</control>
+  <controlmethod>ip</controlmethod>
+  <driver>DriverWorks</driver>
+  <small image_source="c4z">icons/device_sm.png</small>
+  <large image_source="c4z">icons/device_lg.png</large>
+  <composer_categories>
+    <category>Audio/Video</category>
+  </composer_categories>
+  <config>
+    <script file="driver.lua" />
+    <documentation file="www/documentation/index.html" />
+    <properties>
+      <property>
+        <name>Roku</name>
+        <type>LABEL</type>
+        <default>Roku</default>
+      </property>
+      <property>
+        <name>Roku Address</name>
+        <type>STRING</type>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>IP address of the Roku (port 8060 assumed). Give the Roku a DHCP reservation.</tooltip>
+      </property>
+      <property>
+        <name>Roku Status</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Behaviour</name>
+        <type>LABEL</type>
+        <default>Behaviour</default>
+      </property>
+      <property>
+        <name>Power Commands</name>
+        <type>LIST</type>
+        <items>
+          <item>Off</item>
+          <item>Go Home when room turns off</item>
+          <item>Roku TV: power on and off</item>
+        </items>
+        <default>Off</default>
+        <readonly>false</readonly>
+        <tooltip>Off sends nothing when the room turns on or off. The Roku TV option only works on Roku TVs, not sticks or boxes.</tooltip>
+      </property>
+      <property>
+        <name>Select Room Source</name>
+        <type>LIST</type>
+        <items>
+          <item>Never</item>
+          <item>Select Roku Bridge</item>
+        </items>
+        <default>Never</default>
+        <readonly>false</readonly>
+        <tooltip>Whether a launch from programming also selects Roku Bridge in the room. Skipped when the room is already on it.</tooltip>
+      </property>
+      <property>
+        <name>After Launch</name>
+        <type>LIST</type>
+        <items>
+          <item>Go to Now Playing</item>
+          <item>Stay on list</item>
+        </items>
+        <default>Go to Now Playing</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Recent List Size</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>5</minimum>
+        <maximum>50</maximum>
+        <default>20</default>
+        <readonly>false</readonly>
+        <tooltip>How many recently launched titles to remember.</tooltip>
+      </property>
+      <property>
+        <name>Now Playing Refresh (s)</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>0</minimum>
+        <maximum>120</maximum>
+        <default>10</default>
+        <readonly>false</readonly>
+        <tooltip>How often the Now Playing bar re-reads the Roku while this source is selected. 0 turns it off.</tooltip>
+      </property>
+      <property>
+        <name>Search</name>
+        <type>LABEL</type>
+        <default>Search</default>
+      </property>
+      <property>
+        <name>Search API Key</name>
+        <type>STRING</type>
+        <password>true</password>
+        <default />
+        <readonly>false</readonly>
+        <tooltip>Free key from Movie of the Night (docs.movieofthenight.com, Authentication guide) or from RapidAPI. The same key works for Shield Bridge.</tooltip>
+      </property>
+      <property>
+        <name>Search API Service</name>
+        <type>LIST</type>
+        <items>
+          <item>Movie of the Night</item>
+          <item>RapidAPI</item>
+        </items>
+        <default>Movie of the Night</default>
+        <readonly>false</readonly>
+        <tooltip>Where the Search API Key came from.</tooltip>
+      </property>
+      <property>
+        <name>Search Country</name>
+        <type>STRING</type>
+        <default>us</default>
+        <readonly>false</readonly>
+        <tooltip>Two-letter country code (us, ca, gb ...). Results only include what streams in this country.</tooltip>
+      </property>
+      <property>
+        <name>Search Includes</name>
+        <type>LIST</type>
+        <items>
+          <item>Subscription and free</item>
+          <item>Plus add-ons</item>
+          <item>Everything (incl. rent/buy)</item>
+        </items>
+        <default>Subscription and free</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Show Titles Not On Roku</name>
+        <type>LIST</type>
+        <items>
+          <item>Yes</item>
+          <item>No</item>
+        </items>
+        <default>Yes</default>
+        <readonly>false</readonly>
+        <tooltip>Also list matches on channels that are not installed, with the option to add the channel.</tooltip>
+      </property>
+      <property>
+        <name>Search Status</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Driver</name>
+        <type>LABEL</type>
+        <default>Driver</default>
+      </property>
+      <property>
+        <name>Debug Mode</name>
+        <type>LIST</type>
+        <items>
+          <item>Off</item>
+          <item>On</item>
+        </items>
+        <default>Off</default>
+        <readonly>false</readonly>
+      </property>
+      <property>
+        <name>Driver Version</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+    </properties>
+    <commands>
+      <command>
+        <name>Launch Channel</name>
+        <description>Launch channel PARAM1 on NAME</description>
+        <params>
+          <param>
+            <name>Channel</name>
+            <type>CUSTOM_SELECT:ChannelSelect</type>
+          </param>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Launch Deep Link</name>
+        <description>Open content PARAM2 in channel PARAM1 on NAME</description>
+        <params>
+          <param>
+            <name>Channel ID</name>
+            <type>STRING</type>
+          </param>
+          <param>
+            <name>Content ID</name>
+            <type>STRING</type>
+          </param>
+          <param>
+            <name>Media Type</name>
+            <type>LIST</type>
+            <items>
+              <item>movie</item>
+              <item>series</item>
+              <item>episode</item>
+              <item>season</item>
+              <item>shortFormVideo</item>
+              <item>tvSpecial</item>
+            </items>
+          </param>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Resume Latest</name>
+        <description>Relaunch the most recent title on NAME</description>
+        <params>
+          <param>
+            <name>Room</name>
+            <type>ROOM_SELECTOR</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Send Key</name>
+        <description>Send key PARAM1 to NAME</description>
+        <params>
+          <param>
+            <name>Key</name>
+            <type>LIST</type>
+            <items>
+              <item>Home</item>
+              <item>Back</item>
+              <item>Select</item>
+              <item>Up</item>
+              <item>Down</item>
+              <item>Left</item>
+              <item>Right</item>
+              <item>Play</item>
+              <item>Rev</item>
+              <item>Fwd</item>
+              <item>InstantReplay</item>
+              <item>Info</item>
+              <item>Backspace</item>
+              <item>Search</item>
+              <item>Enter</item>
+              <item>VolumeUp</item>
+              <item>VolumeDown</item>
+              <item>VolumeMute</item>
+              <item>PowerOff</item>
+              <item>PowerOn</item>
+            </items>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Send Text</name>
+        <description>Type PARAM1 on NAME</description>
+        <params>
+          <param>
+            <name>Text</name>
+            <type>STRING</type>
+          </param>
+        </params>
+      </command>
+      <command>
+        <name>Clear Recent</name>
+        <description>Clear the recently launched list on NAME</description>
+      </command>
+      <command>
+        <name>Refresh</name>
+        <description>Re-read the channel list on NAME</description>
+      </command>
+    </commands>
+    <actions>
+      <action>
+        <name>Test Connection</name>
+        <command>Test Connection</command>
+      </action>
+      <action>
+        <name>Test Search</name>
+        <command>Test Search</command>
+      </action>
+      <action>
+        <name>Refresh Channels</name>
+        <command>Refresh</command>
+      </action>
+      <action>
+        <name>Clear Recent List</name>
+        <command>Clear Recent</command>
+      </action>
+    </actions>
+  </config>
+  <capabilities>
+    <hide_in_media>True</hide_in_media>
+    <video_provider_count>1</video_provider_count>
+    <digital_audio_support>False</digital_audio_support>
+    <ui_selects_device>True</ui_selects_device>
+    <list_nowplaying_non_c4>True</list_nowplaying_non_c4>
+    <navigator_display_option proxybindingid="5001">
+      <display_icons>
+        <Icon width="70" height="70">controller://driver/roku_bridge/icons/device/experience_70.png</Icon>
+        <Icon width="90" height="90">controller://driver/roku_bridge/icons/device/experience_90.png</Icon>
+        <Icon width="300" height="300">controller://driver/roku_bridge/icons/device/experience_300.png</Icon>
+        <Icon width="512" height="512">controller://driver/roku_bridge/icons/device/experience_512.png</Icon>
+        <Icon width="1024" height="1024">controller://driver/roku_bridge/icons/device/experience_1024.png</Icon>
+      </display_icons>
+    </navigator_display_option>
+    <UI xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" proxybindingid="5001">
+      <DeviceIcon>device</DeviceIcon>
+      <BrandingIcon>branding</BrandingIcon>
+      <Icons>
+        <IconGroup id="branding">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/branding/branding_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/branding/branding_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/branding/branding_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/branding/branding_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/branding/branding_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/branding/branding_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/branding/branding_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/branding/branding_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/branding/branding_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/branding/branding_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/branding/branding_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/branding/branding_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/branding/branding_140.png</Icon>
+          <Icon width="150" height="150">controller://driver/roku_bridge/icons/branding/branding_150.png</Icon>
+          <Icon width="300" height="300">controller://driver/roku_bridge/icons/branding/branding_300.png</Icon>
+          <Icon width="400" height="400">controller://driver/roku_bridge/icons/branding/branding_400.png</Icon>
+        </IconGroup>
+        <IconGroup id="device">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/device/device_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/device/device_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/device/device_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/device/device_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/device/device_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/device/device_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/device/device_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/device/device_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/device/device_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/device/device_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/device/device_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/device/device_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/device/device_140.png</Icon>
+          <Icon width="150" height="150">controller://driver/roku_bridge/icons/device/device_150.png</Icon>
+          <Icon width="300" height="300">controller://driver/roku_bridge/icons/device/device_300.png</Icon>
+          <Icon width="400" height="400">controller://driver/roku_bridge/icons/device/device_400.png</Icon>
+          <Icon width="512" height="512">controller://driver/roku_bridge/icons/device/device_512.png</Icon>
+          <Icon width="1024" height="1024">controller://driver/roku_bridge/icons/device/device_1024.png</Icon>
+        </IconGroup>
+        <IconGroup id="tab_continue">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/tab_continue/tab_continue_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/tab_continue/tab_continue_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/tab_continue/tab_continue_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/tab_continue/tab_continue_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/tab_continue/tab_continue_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/tab_continue/tab_continue_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/tab_continue/tab_continue_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/tab_continue/tab_continue_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/tab_continue/tab_continue_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/tab_continue/tab_continue_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/tab_continue/tab_continue_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/tab_continue/tab_continue_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/tab_continue/tab_continue_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="tab_apps">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/tab_apps/tab_apps_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/tab_apps/tab_apps_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/tab_apps/tab_apps_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/tab_apps/tab_apps_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/tab_apps/tab_apps_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/tab_apps/tab_apps_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/tab_apps/tab_apps_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/tab_apps/tab_apps_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/tab_apps/tab_apps_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/tab_apps/tab_apps_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/tab_apps/tab_apps_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/tab_apps/tab_apps_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/tab_apps/tab_apps_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_up">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_up/nav_up_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_up/nav_up_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_up/nav_up_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_up/nav_up_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_up/nav_up_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_up/nav_up_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_up/nav_up_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_up/nav_up_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_up/nav_up_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_up/nav_up_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_up/nav_up_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_up/nav_up_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_up/nav_up_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_down">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_down/nav_down_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_down/nav_down_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_down/nav_down_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_down/nav_down_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_down/nav_down_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_down/nav_down_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_down/nav_down_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_down/nav_down_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_down/nav_down_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_down/nav_down_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_down/nav_down_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_down/nav_down_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_down/nav_down_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_left">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_left/nav_left_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_left/nav_left_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_left/nav_left_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_left/nav_left_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_left/nav_left_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_left/nav_left_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_left/nav_left_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_left/nav_left_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_left/nav_left_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_left/nav_left_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_left/nav_left_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_left/nav_left_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_left/nav_left_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_right">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_right/nav_right_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_right/nav_right_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_right/nav_right_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_right/nav_right_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_right/nav_right_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_right/nav_right_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_right/nav_right_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_right/nav_right_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_right/nav_right_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_right/nav_right_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_right/nav_right_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_right/nav_right_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_right/nav_right_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_ok">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_ok/nav_ok_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_ok/nav_ok_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_ok/nav_ok_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_ok/nav_ok_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_ok/nav_ok_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_ok/nav_ok_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_ok/nav_ok_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_ok/nav_ok_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_ok/nav_ok_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_ok/nav_ok_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_ok/nav_ok_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_ok/nav_ok_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_ok/nav_ok_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_back">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_back/nav_back_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_back/nav_back_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_back/nav_back_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_back/nav_back_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_back/nav_back_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_back/nav_back_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_back/nav_back_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_back/nav_back_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_back/nav_back_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_back/nav_back_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_back/nav_back_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_back/nav_back_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_back/nav_back_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_home">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_home/nav_home_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_home/nav_home_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_home/nav_home_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_home/nav_home_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_home/nav_home_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_home/nav_home_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_home/nav_home_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_home/nav_home_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_home/nav_home_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_home/nav_home_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_home/nav_home_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_home/nav_home_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_home/nav_home_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_search">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_search/nav_search_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_search/nav_search_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_search/nav_search_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_search/nav_search_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_search/nav_search_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_search/nav_search_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_search/nav_search_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_search/nav_search_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_search/nav_search_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_search/nav_search_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_search/nav_search_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_search/nav_search_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_search/nav_search_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_play">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_play/nav_play_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_play/nav_play_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_play/nav_play_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_play/nav_play_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_play/nav_play_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_play/nav_play_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_play/nav_play_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_play/nav_play_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_play/nav_play_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_play/nav_play_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_play/nav_play_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_play/nav_play_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_play/nav_play_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_pause">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_pause/nav_pause_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_pause/nav_pause_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_pause/nav_pause_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_pause/nav_pause_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_pause/nav_pause_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_pause/nav_pause_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_pause/nav_pause_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_pause/nav_pause_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_pause/nav_pause_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_pause/nav_pause_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_pause/nav_pause_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_pause/nav_pause_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_pause/nav_pause_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_rew">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_rew/nav_rew_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_rew/nav_rew_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_rew/nav_rew_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_rew/nav_rew_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_rew/nav_rew_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_rew/nav_rew_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_rew/nav_rew_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_rew/nav_rew_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_rew/nav_rew_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_rew/nav_rew_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_rew/nav_rew_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_rew/nav_rew_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_rew/nav_rew_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_ff">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_ff/nav_ff_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_ff/nav_ff_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_ff/nav_ff_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_ff/nav_ff_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_ff/nav_ff_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_ff/nav_ff_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_ff/nav_ff_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_ff/nav_ff_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_ff/nav_ff_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_ff/nav_ff_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_ff/nav_ff_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_ff/nav_ff_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_ff/nav_ff_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_playpause">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_140.png</Icon>
+        </IconGroup>
+      </Icons>
+      <Search>
+        <Filters>
+          <SearchFilter>
+            <Id>all</Id>
+            <Name>All</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+          <SearchFilter>
+            <Id>movie</Id>
+            <Name>Movies</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+          <SearchFilter>
+            <Id>series</Id>
+            <Name>Series</Name>
+            <ScreenId>SearchResultsScreen</ScreenId>
+          </SearchFilter>
+        </Filters>
+        <History>
+          <DataCommand>
+            <Name>GetSearchHistory</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>filter</Name>
+                <Type>SEARCH_FILTER</Type>
+              </Param>
+            </Params>
+          </DataCommand>
+          <TextProperty>name</TextProperty>
+        </History>
+      </Search>
+      <Tabs>
+        <Tab>
+          <Id>Channels</Id>
+          <Name>Channels</Name>
+          <IconId>tab_apps</IconId>
+          <ScreenId>ChannelsScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Recent</Id>
+          <Name>Recent</Name>
+          <IconId>tab_continue</IconId>
+          <ScreenId>RecentScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Search</Id>
+          <Name>Search</Name>
+          <IconId>nav_search</IconId>
+          <ScreenId>SearchScreen</ScreenId>
+        </Tab>
+        <Tab>
+          <Id>Remote</Id>
+          <Name>Remote</Name>
+          <IconId>nav_ok</IconId>
+          <ScreenId>RemoteScreen</ScreenId>
+        </Tab>
+      </Tabs>
+      <Screens>
+        <Screen xsi:type="ListScreenType">
+          <Id>ChannelsScreen</Id>
+          <DataCommand>
+            <Name>GetChannels</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>RecentScreen</Id>
+          <DataCommand>
+            <Name>GetRecent</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="SettingsScreenType">
+          <Id>SearchScreen</Id>
+          <DataCommand>
+            <Name>GetSearch</Name>
+            <Type>PROTOCOL</Type>
+          </DataCommand>
+          <RequiresRefresh>false</RequiresRefresh>
+          <Item>
+            <HeaderTxt>SEARCH MOVIES AND SHOWS</HeaderTxt>
+          </Item>
+          <Item>
+            <Label>Search for</Label>
+            <TextField propertyName="SearchQuery" />
+          </Item>
+          <Item>
+            <Button>
+              <Name>Show results</Name>
+              <Command>
+                <Name>SearchHere</Name>
+                <Type>PROTOCOL</Type>
+              </Command>
+            </Button>
+          </Item>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>SearchResultsScreen</Id>
+          <DataCommand>
+            <Name>SearchResults</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+              <Param>
+                <Name>search</Name>
+                <Type>SEARCH</Type>
+              </Param>
+              <Param>
+                <Name>search_filter</Name>
+                <Type>SEARCH_FILTER</Type>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>WhereToWatchScreen</Id>
+          <DataCommand>
+            <Name>GetWhereToWatch</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
+          <Id>RemoteScreen</Id>
+          <DataCommand>
+            <Name>GetRemote</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>false</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+      </Screens>
+      <NowPlaying>
+        <ActionIds>NavUp NavDown NavLeft NavRight NavOk NavBack NavHome</ActionIds>
+        <ActionIdsProperty>actions_list</ActionIdsProperty>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+      </NowPlaying>
+      <Actions>
+        <Action>
+          <Id>LaunchChannel</Id>
+          <Name>Open</Name>
+          <Command>
+            <Name>LaunchChannel</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>LaunchRecent</Id>
+          <Name>Play</Name>
+          <Command>
+            <Name>LaunchRecent</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>RemoveRecent</Id>
+          <Name>Remove from list</Name>
+          <Command>
+            <Name>RemoveRecent</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchPick</Id>
+          <Name>Watch</Name>
+          <Command>
+            <Name>SearchPick</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchPlay</Id>
+          <Name>Play</Name>
+          <Command>
+            <Name>SearchPlay</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>RemoteKey</Id>
+          <Name>Press</Name>
+          <Command>
+            <Name>RemoteKey</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavUp</Id>
+          <Name>Up</Name>
+          <IconId>nav_up</IconId>
+          <Command>
+            <Name>UP</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavDown</Id>
+          <Name>Down</Name>
+          <IconId>nav_down</IconId>
+          <Command>
+            <Name>DOWN</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavLeft</Id>
+          <Name>Left</Name>
+          <IconId>nav_left</IconId>
+          <Command>
+            <Name>LEFT</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavRight</Id>
+          <Name>Right</Name>
+          <IconId>nav_right</IconId>
+          <Command>
+            <Name>RIGHT</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavOk</Id>
+          <Name>OK</Name>
+          <IconId>nav_ok</IconId>
+          <Command>
+            <Name>ENTER</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavBack</Id>
+          <Name>Back</Name>
+          <IconId>nav_back</IconId>
+          <Command>
+            <Name>CANCEL</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+        <Action>
+          <Id>NavHome</Id>
+          <Name>Home</Name>
+          <IconId>nav_home</IconId>
+          <Command>
+            <Name>HOME</Name>
+            <Type>PROTOCOL</Type>
+          </Command>
+        </Action>
+      </Actions>
+      <Dashboard>
+        <Transport>
+          <Id>ScanRev</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Rewind</Name>
+          <IconId>nav_rew</IconId>
+          <ReleaseCommand>
+            <Name>SCAN_REV</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>ScanFwd</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Fast Forward</Name>
+          <IconId>nav_ff</IconId>
+          <ReleaseCommand>
+            <Name>SCAN_FWD</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Replay</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Instant Replay</Name>
+          <IconId>nav_back</IconId>
+          <ReleaseCommand>
+            <Name>SKIP_REV</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Play</Id>
+          <ButtonType>PLAY</ButtonType>
+          <ReleaseCommand>
+            <Name>PLAY</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Pause</Id>
+          <ButtonType>PAUSE</ButtonType>
+          <ReleaseCommand>
+            <Name>PAUSE</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Stop</Id>
+          <ButtonType>STOP</ButtonType>
+          <ReleaseCommand>
+            <Name>STOP</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>SkipRev</Id>
+          <ButtonType>SKIP_REV</ButtonType>
+          <ReleaseCommand>
+            <Name>SKIP_REV</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>SkipFwd</Id>
+          <ButtonType>SKIP_FWD</ButtonType>
+          <ReleaseCommand>
+            <Name>SKIP_FWD</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+      </Dashboard>
+    </UI>
+  </capabilities>
+  <events>
+    <event>
+      <id>1</id>
+      <name>Item Launched</name>
+      <description>NAME launched a title or channel</description>
+    </event>
+    <event>
+      <id>2</id>
+      <name>Roku Online</name>
+      <description>NAME reached the Roku</description>
+    </event>
+    <event>
+      <id>3</id>
+      <name>Roku Offline</name>
+      <description>NAME lost contact with the Roku</description>
+    </event>
+  </events>
+  <proxies qty="1">
+    <proxy proxybindingid="5001" name="Roku Bridge" primary="True" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_service</proxy>
+  </proxies>
+  <connections>
+    <connection>
+      <id>5001</id>
+      <type>2</type>
+      <connectionname>Roku Bridge</connectionname>
+      <consumer>false</consumer>
+      <linelevel>false</linelevel>
+      <classes>
+        <class>
+          <classname>MediaService</classname>
+        </class>
+      </classes>
+    </connection>
+    <!-- Bind these to the TV / AVR input the Roku is plugged into. -->
+    <connection proxybindingid="5001">
+      <id>2001</id>
+      <type>5</type>
+      <connectionname>Video Out (to TV or AVR)</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>HDMI</classname>
+        </class>
+      </classes>
+    </connection>
+    <connection proxybindingid="5001">
+      <id>4001</id>
+      <type>6</type>
+      <connectionname>Audio Out (to TV or AVR)</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>STEREO</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_COAX</classname>
+        </class>
+        <class>
+          <classname>DIGITAL_OPTICAL</classname>
+        </class>
+      </classes>
+    </connection>
+  </connections>
+</devicedata>

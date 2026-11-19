@@ -161,24 +161,37 @@ def save(img, path):
     img.save(path, "PNG", optimize=True)
 
 
-def main():
-    # Control4 driver icons
-    for sz in sorted(set(MSP_SIZES + DISPLAY_SIZES)):
-        save(device_icon(sz), os.path.join(DRIVER_ICONS, "device", f"device_{sz}.png"))
-        save(branding_icon(sz), os.path.join(DRIVER_ICONS, "branding", f"branding_{sz}.png"))
-    for sz in DISPLAY_SIZES:
-        save(device_icon(sz), os.path.join(DRIVER_ICONS, "device", f"experience_{sz}.png"))
-    for sz in TAB_SIZES:
-        save(tab_continue(sz), os.path.join(DRIVER_ICONS, "tab_continue", f"tab_continue_{sz}.png"))
-        save(tab_apps(sz), os.path.join(DRIVER_ICONS, "tab_apps", f"tab_apps_{sz}.png"))
-    save(device_icon(32), os.path.join(DRIVER_ICONS, "device_sm.png"))
-    save(device_icon(64), os.path.join(DRIVER_ICONS, "device_lg.png"))
+DRIVERS = {
+    "shield_bridge": (118, 185, 0, 255),   # green
+    "roku_bridge": (125, 60, 190, 255),    # purple
+}
 
-    # On-screen control glyphs for the Now Playing remote
+
+def driver_icons(name, accent):
+    global ACCENT
+    ACCENT = accent
+    icons = os.path.join(ROOT, name, "icons")
+    for sz in sorted(set(MSP_SIZES + DISPLAY_SIZES)):
+        save(device_icon(sz), os.path.join(icons, "device", f"device_{sz}.png"))
+        save(branding_icon(sz), os.path.join(icons, "branding", f"branding_{sz}.png"))
+    for sz in DISPLAY_SIZES:
+        save(device_icon(sz), os.path.join(icons, "device", f"experience_{sz}.png"))
+    for sz in TAB_SIZES:
+        save(tab_continue(sz), os.path.join(icons, "tab_continue", f"tab_continue_{sz}.png"))
+        save(tab_apps(sz), os.path.join(icons, "tab_apps", f"tab_apps_{sz}.png"))
+    save(device_icon(32), os.path.join(icons, "device_sm.png"))
+    save(device_icon(64), os.path.join(icons, "device_lg.png"))
+    # On-screen control glyphs
     for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff"):
-        name = "nav_" + kind
+        nm = "nav_" + kind
         for sz in TAB_SIZES:
-            save(nav_glyph(sz, kind), os.path.join(DRIVER_ICONS, name, f"{name}_{sz}.png"))
+            save(nav_glyph(sz, kind), os.path.join(icons, nm, f"{nm}_{sz}.png"))
+
+
+def main():
+    # Control4 driver icons (Shield last, so ACCENT is green for the app assets)
+    for name in ("roku_bridge", "shield_bridge"):
+        driver_icons(name, DRIVERS[name])
 
     # Android app resources
     save(device_icon(192), os.path.join(APP_RES, "mipmap", "ic_launcher.png"))

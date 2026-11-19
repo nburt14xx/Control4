@@ -17,12 +17,17 @@ jobs:
         run: |
           lua5.1 control4/test/test_driver.lua
           lua5.1 control4/test/test_search.lua
+          lua5.1 control4/test/test_roku.lua
       - name: Package c4z
-        run: python3 control4/tools/build_c4z.py --out dist/shield_bridge.c4z
+        run: |
+          python3 control4/tools/build_c4z.py --driver shield_bridge
+          python3 control4/tools/build_c4z.py --driver roku_bridge
       - uses: actions/upload-artifact@v4
         with:
           name: shield_bridge-c4z
-          path: dist/shield_bridge.c4z
+          path: |
+            dist/shield_bridge.c4z
+            dist/roku_bridge.c4z
 
   app:
     name: Shield Bridge app (.apk)
@@ -74,6 +79,8 @@ jobs:
 
             - `shield-bridge.apk`: sideload on the NVIDIA Shield (`adb install -r shield-bridge.apk`)
             - `shield_bridge.c4z`: add in Composer Pro via Driver > Add or Update Driver or Agent
+            - `roku_bridge.c4z`: the Roku driver, added the same way
           files: |
             out/shield-bridge.apk
             out/shield_bridge.c4z
+            out/roku_bridge.c4z

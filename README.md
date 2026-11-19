@@ -23,6 +23,7 @@ powers up the room, wakes the Shield and resumes the show where it left off.
 | --- | --- |
 | `shield-bridge/` | Android TV app (Kotlin). Foreground service with a small LAN HTTP API. Reads the Watch Next table, serves cached poster art, launches intents. |
 | `control4/shield_bridge/` | DriverWorks driver (`driver.xml`, `driver.lua`, icons). Media Service Proxy UI with *Continue Watching* and *Apps* tabs, room favorites, programming commands. |
+| `control4/roku_bridge/` | A second, standalone driver for Roku players and TVs: remote, channels, the same poster search, deep-link launch per channel, and a recently-launched list. Talks to the Roku directly; no app needed. See `docs/ROKU.md`. |
 | `control4/test/` | Lua 5.1 tests that run the driver against a fake C4 runtime. |
 | `control4/tools/` | `build_c4z.py` packs and validates the driver; `gen_icons.py` regenerates icons. |
 | `docs/SETUP.md` | Install steps for the Shield and Composer. |

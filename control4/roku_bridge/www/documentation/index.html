@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Roku Bridge driver</title>
+<style>
+  body { font-family: Segoe UI, Arial, sans-serif; max-width: 820px; margin: 24px auto; line-height: 1.45; color: #222; }
+  h1, h2 { color: #123; }
+  code, pre { background: #f3f5f7; padding: 2px 5px; border-radius: 4px; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #ccd; padding: 6px 10px; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<h1>Roku Bridge</h1>
+<p>A complete Roku driver: remote and transport, installed channels, a search with posters that plays the chosen title in the right channel, and a list of what you recently launched. It talks to the Roku directly over the network. Nothing is installed on the Roku.</p>
+
+<h2>1. Roku side</h2>
+<ol>
+  <li>On the Roku: <strong>Settings &gt; System &gt; Advanced system settings &gt; Control by mobile apps &gt; Network access</strong>, set to <strong>Enabled</strong> (or Permissive). The default, Limited, blocks this driver.</li>
+  <li>Note the Roku's IP address (Settings &gt; Network &gt; About) and give it a DHCP reservation.</li>
+</ol>
+
+<h2>2. Composer</h2>
+<ol>
+  <li>Add <em>Roku Bridge</em> to the room. It replaces the stock Roku driver: remove that one or move it to an unused room.</li>
+  <li><strong>Connections</strong>: bind <em>Video Out</em> and <em>Audio Out</em> to the TV/AVR input the Roku is plugged into.</li>
+  <li><strong>Properties</strong>: set <em>Roku Address</em>. For search, paste a <em>Search API Key</em> (free, from the Authentication guide at docs.movieofthenight.com; the same key works for Shield Bridge) and check <em>Search Country</em>.</li>
+  <li><strong>Actions &gt; Test Connection</strong>, then read the Lua tab. Expect the Roku's name, model and OS, then "control is working". <strong>Actions &gt; Test Search</strong> lists results with the channel and content id each would launch.</li>
+  <li>Refresh Navigators.</li>
+</ol>
+
+<h2>3. Using it</h2>
+<ul>
+  <li><strong>Search</strong> (magnifier, or the Search tab): type a show or movie. Results show a poster and which installed channel has it. Tap to play; if several channels have it, choose one. Titles on a channel you have not installed appear under "On channels you can add": choosing one opens that channel's install page on the Roku.</li>
+  <li><strong>Recent</strong>: titles you started from Search, newest first. Tap to jump back in; most channels resume where you stopped. The driver cannot see anything started with the Roku's own remote.</li>
+  <li><strong>Channels</strong>: every installed channel with its icon.</li>
+  <li><strong>Remote</strong>: on-screen keys. The physical remote's arrows, OK, back and transport work too.</li>
+</ul>
+
+<h2>4. If a title opens the channel's home screen</h2>
+<p>Each channel has its own way of naming a title, and Roku gives no error when the id is not accepted. The driver prints every launch in the Lua tab, for example <code>Roku Bridge: launch Hulu (channel 2285) contentId=... mediaType=series</code>. Send that line to whoever maintains the driver so the rule for that channel can be corrected. The <em>Launch Deep Link</em> command lets you try ids by hand.</p>
+
+<h2>5. Programming</h2>
+<table>
+  <tr><th>Command</th><th>What it does</th></tr>
+  <tr><td>Launch Channel</td><td>Opens an installed channel.</td></tr>
+  <tr><td>Launch Deep Link</td><td>Opens a content id in a channel, with a media type.</td></tr>
+  <tr><td>Resume Latest</td><td>Relaunches the newest entry in Recent.</td></tr>
+  <tr><td>Send Key / Send Text</td><td>Presses a Roku key, or types text into the focused field.</td></tr>
+  <tr><td>Clear Recent / Refresh</td><td>Empties the Recent list / re-reads the channel list.</td></tr>
+</table>
+<p>Events: <em>Item Launched</em>, <em>Roku Online</em>, <em>Roku Offline</em>. Variables: <code>LAST_LAUNCHED_TITLE</code>, <code>LAST_LAUNCHED_APP</code>, <code>ACTIVE_APP</code>, <code>ROKU_ONLINE</code>.</p>
+
+<h2>6. Properties</h2>
+<table>
+  <tr><th>Property</th><th>Meaning</th></tr>
+  <tr><td>Power Commands</td><td>Off (default) sends nothing when the room turns on or off. Other options: go Home on room off, or real power on/off for Roku TVs.</td></tr>
+  <tr><td>Select Room Source</td><td>Never (default), or select Roku Bridge when a keypad or scene launches something.</td></tr>
+  <tr><td>Search Includes</td><td>Subscription and free only (default), plus add-ons, or everything including rent/buy.</td></tr>
+  <tr><td>Show Titles Not On Roku</td><td>List matches on channels that are not installed.</td></tr>
+  <tr><td>Recent List Size</td><td>How many recent titles to remember.</td></tr>
+  <tr><td>Now Playing Refresh (s)</td><td>How often the Now Playing bar re-reads the Roku while selected.</td></tr>
+</table>
+
+<h2>7. Troubleshooting</h2>
+<ul>
+  <li><em>Roku Status</em> mentions "Control by mobile apps": change that setting on the Roku (step 1).</li>
+  <li><em>Roku Status</em> says Offline: check the address and that the controller can reach port 8060.</li>
+  <li>Play and Pause: Roku has one toggle key, so the driver checks what is playing first. A channel that does not report its state gets a plain toggle.</li>
+  <li>Turn on <em>Debug Mode</em> to see every network call in the Lua tab.</li>
+</ul>
+</body>
+</html>

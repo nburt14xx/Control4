@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Package the driver folder into a .c4z and sanity-check it first.
 
-Usage:  python3 control4/tools/build_c4z.py [--out dist/shield_bridge.c4z]
+Usage:  python3 control4/tools/build_c4z.py [--driver shield_bridge|roku_bridge] [--out FILE]
 
 A .c4z is a zip with driver.xml at its root. Composer rejects malformed XML
 silently, so the XML is parsed here, every controller://driver/<name>/... icon
@@ -18,11 +18,10 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DRIVER_DIR = os.path.join(os.path.dirname(HERE), "shield_bridge")
-DRIVER_NAME = "shield_bridge"
+DRIVERS_ROOT = os.path.dirname(HERE)
 
 
-def check(driver_dir):
+def check(driver_dir, driver_name):
     xml_path = os.path.join(driver_dir, "driver.xml")
     tree = ET.parse(xml_path)  # raises on malformed XML
     root = tree.getroot()
@@ -47,8 +46,8 @@ def check(driver_dir):
 
     raw = open(xml_path, encoding="utf-8").read()
     for m in re.finditer(r"controller://driver/([^/]+)/([^<\s]+)", raw):
-        if m.group(1) != DRIVER_NAME:
-            problems.append("icon path uses driver name %r, expected %r" % (m.group(1), DRIVER_NAME))
+        if m.group(1) != driver_name:
+            problems.append("icon path uses driver name %r, expected %r" % (m.group(1), driver_name))
         if not os.path.exists(os.path.join(driver_dir, m.group(2))):
             problems.append("referenced icon missing: %s" % m.group(2))
 
@@ -81,17 +80,19 @@ def build(driver_dir, out_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.dirname(HERE)), "dist", DRIVER_NAME + ".c4z"))
-    ap.add_argument("--driver-dir", default=DRIVER_DIR)
+    ap.add_argument("--driver", default="shield_bridge", help="driver folder name under control4/")
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    driver_dir = os.path.join(DRIVERS_ROOT, args.driver)
+    out = args.out or os.path.join(os.path.dirname(DRIVERS_ROOT), "dist", args.driver + ".c4z")
 
-    problems = check(args.driver_dir)
+    problems = check(driver_dir, args.driver)
     if problems:
         for p in problems:
             print("ERROR:", p)
         return 1
-    n = build(args.driver_dir, args.out)
-    print("wrote %s (%d files, %d bytes)" % (args.out, n, os.path.getsize(args.out)))
+    n = build(driver_dir, out)
+    print("wrote %s (%d files, %d bytes)" % (out, n, os.path.getsize(out)))
     return 0
 
 
