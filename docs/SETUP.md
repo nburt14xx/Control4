@@ -56,9 +56,9 @@ show both permissions `true`.
    - The main room now lists only Shield Bridge under Watch.
 4. **Properties**:
    - *Bridge Address*: `192.168.1.50` (port 8765 assumed) or `host:port`.
-   - *Shield Control Device*: pick the Shield's own driver. Arrow, OK, back and
-     transport buttons pressed on Shield Bridge are relayed to it. If it is not
-     in the picker, type its device ID into *Shield Control Device ID*.
+   - *Shield Control Device ID*: the device ID of the Shield's own driver
+     (hover over it in the project tree to see it). Arrow, OK, back and
+     transport buttons pressed on Shield Bridge are relayed to it.
    - *Shield MAC Address*: only if you want Wake-on-LAN (*Wake on Select* = On).
    - *API Key*: only if you turned it on in the app.
 5. **Actions > Test Connection**, then read the Lua output tab. It prints the

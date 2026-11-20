@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>10</version>
+  <version>11</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -101,19 +101,11 @@
         <tooltip>What happens after starting a show. Switch to Remote moves the room to Shield Bridge Remote, the standard Control4 remote screen; the poster stays on Shield Bridge's own Now Playing.</tooltip>
       </property>
       <property>
-        <name>Shield Control Device</name>
-        <type>DEVICE_SELECTOR</type>
-        <default />
-        <multiselect>false</multiselect>
-        <readonly>false</readonly>
-        <tooltip>The driver that actually controls the Shield (it can sit in any room). Remote and transport buttons pressed on Shield Bridge are relayed to it.</tooltip>
-      </property>
-      <property>
         <name>Shield Control Device ID</name>
         <type>STRING</type>
         <default />
         <readonly>false</readonly>
-        <tooltip>Optional. Type the Shield driver's device ID here if it does not appear in the picker above. Overrides the picker.</tooltip>
+        <tooltip>Device ID of the driver that actually controls the Shield (it can sit in any room). Remote and transport buttons are relayed to it. Hover over that driver in Composer's project tree to see its ID.</tooltip>
       </property>
       <property>
         <name>Forward Remote Commands</name>

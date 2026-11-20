@@ -302,7 +302,7 @@ ReceivedFromProxy(5001, 'RemoteKey', { NAVID = 'navR', SEQ = '63', ARGS = '<para
 eq(#stub.deviceMessages, before, 'unknown remote key ignored')
 Properties['Shield Control Device'] = ''
 ReceivedFromProxy(5001, 'GetRemote', { NAVID = 'navR', SEQ = '64' })
-find(stub.proxyMessages[#stub.proxyMessages].params.DATA, 'Choose a Shield Control Device in Composer', 'remote explains when no control device is set')
+find(stub.proxyMessages[#stub.proxyMessages].params.DATA, 'Set Shield Control Device ID in Composer', 'remote explains when no control device is set')
 Properties['Shield Control Device'] = '4242'
 
 ------------------------------------------------------------------ bridge offline

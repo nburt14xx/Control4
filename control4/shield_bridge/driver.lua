@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.4.1"
+DRIVER_VERSION = "0.4.2"
 
 MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
 REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
@@ -1030,7 +1030,7 @@ REMOTE_KEYS = {
 function RFP.GetRemote(tParams, args, idBinding)
 	local x = { '<List>' }
 	if (not ResolveShieldDevice()) then
-		table.insert(x, HeaderXml('Choose a Shield Control Device in Composer to enable these keys'))
+		table.insert(x, HeaderXml('Set Shield Control Device ID in Composer to enable these keys'))
 	end
 	for _, k in ipairs(REMOTE_KEYS) do
 		local icon = 'controller://driver/shield_bridge/icons/' .. k[3] .. '/' .. k[3] .. '_140.png'
@@ -1765,7 +1765,7 @@ function EC.Test_Connection(tParams)
 		local okName, name = pcall(function() return C4:GetDeviceDisplayName(dev) end)
 		print('Remote keys relay to device ' .. dev .. ((okName and name) and (' (' .. tostring(name) .. ')') or ''))
 	else
-		print('Remote keys: no Shield Control Device chosen, so arrows and transport go nowhere')
+		print('Remote keys: Shield Control Device ID is empty, so arrows and transport go nowhere')
 	end
 end
 
