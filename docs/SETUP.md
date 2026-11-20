@@ -107,8 +107,11 @@ Behaviour worth knowing:
 - **Shield Bridge Remote** is a second device in the room's Watch list: the
   standard Control4 remote screen with D-pad, transport, menu and number keys.
   Its keys are relayed to the Shield Control Device too. It needs no wiring:
-  it feeds Shield Bridge internally. Set *After Launch* to **Switch to Remote**
-  to land on it automatically after starting a show. Control4 does not draw
+  it feeds Shield Bridge internally. **It is the room's Shield source**: select
+  it to turn the room on. Opening Shield Bridge only browses and does not change
+  the room's source; starting a show puts the room on Shield Bridge Remote.
+  *After Launch* picks the screen shown afterwards (Now Playing, the remote, or
+  stay on the list). Control4 does not draw
   artwork on this screen type, so the poster stays on Shield Bridge's own Now
   Playing.
 

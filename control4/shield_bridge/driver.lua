@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.4.2"
+DRIVER_VERSION = "0.5.0"
 
 MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
 REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
@@ -610,22 +610,30 @@ end
 -- Selects this driver as the room's video source, unless the room is already
 -- on it. Re-selecting an active source makes the room re-run its power-on
 -- sequence, which flips displays that only have an IR power toggle.
--- Shield Bridge is the room's Shield source. Launching from Navigator needs no
--- room command (the user is already on this source); "Select Shield Bridge"
--- exists for keypad or scene launches that should also turn the room on. The
--- command is skipped when the room is already on this source.
-function SelectInRoom(roomId)
+-- The room's Shield source is Shield Bridge Remote; Shield Bridge itself is
+-- only browsed (ui_selects_device is False), so it never becomes the source and
+-- never sits in the path of the active source. This avoids Control4's "Media
+-- Interrupted" resource conflict between the two screens.
+RecentSelect = RecentSelect or {}
+function SelectRemoteInRoom(roomId)
 	roomId = tonumber(roomId)
-	if (not roomId or roomId == 0) then return end
+	local remoteId = ProxyIdFor(REMOTE_PROXY)
+	if (not roomId or roomId == 0 or not remoteId) then return false end
+	if (RoomCurrentDevice(roomId) == remoteId) then return true end
+	-- one select per room per few seconds, even if the room variable lags
+	if (RecentSelect[roomId] and os.time() - RecentSelect[roomId] < 5) then return true end
+	RecentSelect[roomId] = os.time()
+	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> Shield Bridge Remote ' .. tostring(remoteId))
+	C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = remoteId })
+	return true
+end
+
+-- Launches from programming (keypads, scenes) only touch the room when
+-- Select Room Source asks for it. Navigator launches always make sure the room
+-- is on Shield Bridge Remote; see AfterLaunchScreen.
+function SelectInRoom(roomId)
 	if ((Properties['Select Room Source'] or 'Never') ~= 'Select Shield Bridge') then return end
-	local targetId = ProxyIdFor(MSP_PROXY)
-	local current = RoomCurrentDevice(roomId)
-	if (current and current == targetId) then
-		dbg('room ' .. roomId .. ' already on Shield Bridge; not re-selecting')
-		return
-	end
-	dbg('SELECT_VIDEO_DEVICE in room ' .. roomId .. ' -> ' .. tostring(targetId))
-	C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = targetId })
+	SelectRemoteInRoom(roomId)
 end
 
 -- Core launch path used by Navigator actions, favorites and programming.
@@ -865,27 +873,14 @@ function RFP.GetApps(tParams, args, idBinding)
 	end)
 end
 
--- What Navigator does after a launch. "Switch to Remote" moves the room to
--- this driver's standard remote screen; both screens share one video path to
--- the TV/AVR, so it is a source change, not a power-up.
+-- After a launch from Navigator: put the room on Shield Bridge Remote (this
+-- also turns a room that was off on), then show the chosen screen.
 function AfterLaunchScreen(roomId)
+	local onRemote = SelectRemoteInRoom(roomId)
 	local mode = Properties['After Launch'] or 'Go to Now Playing'
-	if (mode == 'Switch to Remote') then
-		roomId = tonumber(roomId)
-		local remoteId = ProxyIdFor(REMOTE_PROXY)
-		if (roomId and roomId ~= 0 and remoteId) then
-			if (RoomCurrentDevice(roomId) ~= remoteId) then
-				dbg('switching room ' .. roomId .. ' to the remote screen ' .. remoteId)
-				C4:SendToDevice(roomId, 'SELECT_VIDEO_DEVICE', { deviceid = remoteId })
-			end
-			return ''
-		end
-		return '<NextScreen>#nowplaying</NextScreen>'
-	end
-	if (mode == 'Go to Now Playing') then
-		return '<NextScreen>#nowplaying</NextScreen>'
-	end
-	return ''
+	if (mode == 'Switch to Remote' and onRemote) then return '' end
+	if (mode == 'Stay on list') then return '' end
+	return '<NextScreen>#nowplaying</NextScreen>'
 end
 
 function RFP.LaunchItem(tParams, args, idBinding)
