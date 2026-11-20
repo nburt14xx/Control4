@@ -45,7 +45,12 @@ show both permissions `true`.
 
 ## 3. Composer Pro
 
-1. **Driver > Add or Update Driver or Agent**, pick `shield_bridge.c4z`.
+1. **Driver > Add or Update Driver or Agent**, pick `shield_bridge.c4z`. The
+   file must have exactly that name: Control4 serves the driver's icons from a
+   path named after the file, so a copy saved as `shield_bridge (1).c4z` or
+   with a version in its name shows "?" on the Now Playing buttons and a
+   generic device icon. The read-only *Driver File* property shows the
+   installed name.
 2. Add *Shield Bridge* (under NVIDIA) to the room that has the Shield.
 3. **Connections**. Shield Bridge is the Shield source for the room. The real
    Shield driver is only used behind the scenes for remote keys:
@@ -102,8 +107,12 @@ Behaviour worth knowing:
 - **Apps** tab opens any installed TV app.
 - The physical remote's arrows, OK, back and transport buttons work as usual:
   Shield Bridge relays them to the Shield Control Device.
-- The **Remote** tab is an on-screen remote, and the Now Playing bar has
-  rewind, play, pause and fast forward.
+- The **Remote** tab is an on-screen remote.
+- The **Now Playing bar** has OK, play, pause, next, menu and a **D-pad**
+  button. D-pad swaps the bar to back, left, up, OK, down and right, so you can
+  move around the Shield's menus without leaving the poster; the last button
+  swaps back. Each touch screen or phone keeps its own mode, and selecting the
+  source or launching a show returns the bar to playback.
 - **Shield Bridge Remote** is a second device in the room's Watch list: the
   standard Control4 remote screen with D-pad, transport, menu and number keys.
   Its keys are relayed to the Shield Control Device too. It needs no wiring:
@@ -131,5 +140,6 @@ and resumes the most recently watched item.
 | show opens on its detail page | that app ignores Google's resume guideline; press Play once |
 | images missing on touch screens | touch screen must reach the Shield's IP directly (same VLAN or routed) |
 | Netflix asks "Who's watching?" | Netflix profile gate on cold start; pick once, later launches go straight in |
+| "?" on Now Playing buttons, generic device icon | driver file not named exactly `shield_bridge.c4z`; see *Driver File* property |
 
 Turn on *Debug Mode* in the driver to see every HTTP call in the Lua output.

@@ -28,6 +28,7 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
 
 <h2>2. Composer</h2>
 <ol>
+  <li>Install the driver file named exactly <code>shield_bridge.c4z</code> (Driver &gt; Add or Update Driver). Control4 finds the driver's icons by that file name: a copy saved as <code>shield_bridge (1).c4z</code> or with a version in its name shows "?" on the Now Playing buttons and a generic device icon. The read-only <em>Driver File</em> property shows the installed name.</li>
   <li>Add the <em>Shield Bridge</em> driver to the room that has the Shield.</li>
   <li><strong>Connections</strong>: Shield Bridge is the room's Shield source.
     <ul>
@@ -47,6 +48,7 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
   <li><em>Apps</em> tab opens any installed TV app.</li>
   <li><strong>Shield Bridge Remote</strong> appears as a second Watch device: the standard Control4 remote screen (D-pad, transport, menu, numbers). It feeds Shield Bridge internally, so it needs no connections. Set <em>After Launch</em> to <em>Switch to Remote</em> to land on it after starting a show. Control4 shows no artwork on this screen type; the poster stays on Shield Bridge's Now Playing.</li>
   <li>Remote and transport buttons, from the physical remote, the <em>Remote</em> tab or the Now Playing bar, are relayed to the Shield Control Device. <em>Home</em> works through the Shield Bridge app itself.</li>
+  <li><strong>Now Playing bar</strong>: OK, Play, Pause, Next, Menu and a <em>D-pad</em> button. D-pad swaps the bar to Back, Left, Up, OK, Down, Right, so you can move around the Shield's menus with the poster still on screen; the last button swaps back to playback. Each touch screen or phone keeps its own mode, and selecting the source or launching a show puts the bar back on playback.</li>
 </ul>
 
 <h2>Search</h2>
@@ -83,6 +85,7 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
   <li>List is empty: the TV listings permission is not granted, or nothing has been watched since. Check with the app's Test button.</li>
   <li>Tap does nothing on the Shield: 'Display over other apps' is not granted. Launches only work from the background with it.</li>
   <li>A show opens on its detail page instead of playing: that app does not follow Google's resume guideline; press Play once.</li>
+  <li>Now Playing buttons show "?" or the device icon is a generic media player: the driver file is not named <code>shield_bridge.c4z</code>. Check the <em>Driver File</em> property, or <em>Test Connection</em>, which says so in the Lua output.</li>
   <li>Turn on <em>Debug Mode</em> and watch the Lua output for the HTTP traffic.</li>
 </ul>
 </body>

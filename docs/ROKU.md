@@ -12,7 +12,10 @@ network (port 8060); nothing is installed on the Roku.
 
 ## 2. Composer Pro
 
-1. **Driver > Add or Update Driver or Agent**, pick `roku_bridge.c4z`.
+1. **Driver > Add or Update Driver or Agent**, pick `roku_bridge.c4z`. Keep
+   exactly that file name: Control4 serves the icons from a path named after
+   the file, so a renamed copy shows "?" buttons. The *Driver File* property
+   shows the installed name.
 2. Add *Roku Bridge* (under Roku) to the room. Remove the stock Roku driver
    from that room, or move it to an unused one.
 3. **Connections**: bind **Video Out** and **Audio Out** to the TV or AVR input

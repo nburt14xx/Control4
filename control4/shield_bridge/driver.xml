@@ -6,8 +6,8 @@
   <name>Shield Bridge</name>
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
-  <modified>11/18/2025 12:00 AM</modified>
-  <version>13</version>
+  <modified>11/20/2026 12:00 AM</modified>
+  <version>14</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -231,6 +231,12 @@
         <default />
         <readonly>true</readonly>
       </property>
+      <property>
+        <name>Driver File</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
     </properties>
     <commands>
       <command>
@@ -360,11 +366,11 @@
     <allow_audio_pathing>True</allow_audio_pathing>
     <navigator_display_option proxybindingid="5002">
       <display_icons>
-        <Icon width="70" height="70">controller://driver/shield_bridge/icons/device/experience_70.png</Icon>
-        <Icon width="90" height="90">controller://driver/shield_bridge/icons/device/experience_90.png</Icon>
-        <Icon width="300" height="300">controller://driver/shield_bridge/icons/device/experience_300.png</Icon>
-        <Icon width="512" height="512">controller://driver/shield_bridge/icons/device/experience_512.png</Icon>
-        <Icon width="1024" height="1024">controller://driver/shield_bridge/icons/device/experience_1024.png</Icon>
+        <Icon width="70" height="70">controller://driver/shield_bridge/icons/remote/experience_70.png</Icon>
+        <Icon width="90" height="90">controller://driver/shield_bridge/icons/remote/experience_90.png</Icon>
+        <Icon width="300" height="300">controller://driver/shield_bridge/icons/remote/experience_300.png</Icon>
+        <Icon width="512" height="512">controller://driver/shield_bridge/icons/remote/experience_512.png</Icon>
+        <Icon width="1024" height="1024">controller://driver/shield_bridge/icons/remote/experience_1024.png</Icon>
       </display_icons>
     </navigator_display_option>
     <navigator_display_option proxybindingid="5001">
@@ -657,6 +663,21 @@
           <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_menu/nav_menu_120.png</Icon>
           <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_menu/nav_menu_130.png</Icon>
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_menu/nav_menu_140.png</Icon>
+        </IconGroup>
+        <IconGroup id="nav_dpad">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_dpad/nav_dpad_140.png</Icon>
         </IconGroup>
       </Icons>
       <Search>
@@ -1286,6 +1307,76 @@
       </Actions>
       <Dashboard>
         <Transport>
+          <Id>DpadOn</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>D-pad</Name>
+          <IconId>nav_dpad</IconId>
+          <ReleaseCommand>
+            <Name>DpadMode</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>DpadOff</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Playback</Name>
+          <IconId>nav_playpause</IconId>
+          <ReleaseCommand>
+            <Name>PlaybackMode</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Back</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Back</Name>
+          <IconId>nav_back</IconId>
+          <ReleaseCommand>
+            <Name>CANCEL</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Left</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Left</Name>
+          <IconId>nav_left</IconId>
+          <ReleaseCommand>
+            <Name>LEFT</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Up</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Up</Name>
+          <IconId>nav_up</IconId>
+          <ReleaseCommand>
+            <Name>UP</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Down</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Down</Name>
+          <IconId>nav_down</IconId>
+          <ReleaseCommand>
+            <Name>DOWN</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Right</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Right</Name>
+          <IconId>nav_right</IconId>
+          <ReleaseCommand>
+            <Name>RIGHT</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
           <Id>Ok</Id>
           <ButtonType>CUSTOM</ButtonType>
           <Name>OK</Name>
@@ -1387,7 +1478,7 @@
   </events>
   <proxies qty="2">
     <proxy proxybindingid="5001" name="Shield Bridge" primary="True" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_service</proxy>
-    <proxy proxybindingid="5002" name="Shield Bridge Remote" image_source="c4z" large_image="icons/device_lg.png" small_image="icons/device_sm.png">media_player</proxy>
+    <proxy proxybindingid="5002" name="Shield Bridge Remote" image_source="c4z" large_image="icons/remote_lg.png" small_image="icons/remote_sm.png">media_player</proxy>
   </proxies>
   <connections>
     <connection>

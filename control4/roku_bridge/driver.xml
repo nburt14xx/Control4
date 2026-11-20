@@ -7,7 +7,7 @@
   <model>Roku players and TVs - Search and Control</model>
   <created>11/19/2026 12:00 AM</created>
   <modified>11/19/2026 12:00 AM</modified>
-  <version>1</version>
+  <version>2</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -170,6 +170,12 @@
       </property>
       <property>
         <name>Driver Version</name>
+        <type>STRING</type>
+        <default />
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Driver File</name>
         <type>STRING</type>
         <default />
         <readonly>true</readonly>

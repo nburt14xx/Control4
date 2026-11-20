@@ -106,6 +106,8 @@ function C4:GetBoundConsumerDevices(deviceId, idBinding)
 	return { [999] = "TV" }
 end
 function C4:GetDriverConfigInfo(tag) return "0.1.0" end
+stub.driverFileName = nil       -- set per driver test; nil = the driver's canonical name
+function C4:GetDriverFileName() return stub.driverFileName end
 function C4:GetControllerNetworkAddress() return "192.168.1.2" end
 
 function C4:AddVariable(name, value, vtype, readonly, hidden)

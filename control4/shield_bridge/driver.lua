@@ -5,20 +5,25 @@ Presents the NVIDIA Shield's system-wide "Continue Watching" (Android TV
 Watch Next) list inside Navigator and launches the selected show straight
 into playback through the Shield Bridge app running on the Shield.
 
-The driver talks HTTP to the bridge app (see docs/API.md). It sits in the
-room's video path between the Shield's own control driver and the display,
-so selecting it in Watch powers the path up, and remote/transport commands
-are forwarded to whatever driver is bound to its Video In connection.
+The driver talks HTTP to the bridge app (see docs/API.md). It is the room's
+Shield source; remote and transport keys are relayed to the Shield's own
+control driver (Shield Control Device ID), which can live in any room.
 
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.5.1"
+DRIVER_VERSION = "0.6.0"
 
 MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
 REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
 
 DEFAULT_BRIDGE_PORT = 8765
+
+-- Control4 serves the files inside a .c4z at controller://driver/<installed file
+-- name without .c4z>/. driver.xml has to spell that name out, so the driver must
+-- be installed as shield_bridge.c4z; under any other name every custom icon is
+-- a "?". Paths built in Lua follow the real name.
+DRIVER_FILE = 'shield_bridge'
 
 -------------------------------------------------------------------------------
 -- State
@@ -87,6 +92,40 @@ function URLEncode(s)
 	s = tostring(s)
 	s = s:gsub('([^%w%-%_%.%~])', function (c) return string.format('%%%02X', string.byte(c)) end)
 	return s
+end
+
+function DriverFileName()
+	local ok, name = pcall(function() return C4:GetDriverFileName() end)
+	if (ok and type(name) == 'string' and name ~= '') then return name end
+	return nil
+end
+
+function DriverFileBase()
+	local name = DriverFileName()
+	if (not name) then return DRIVER_FILE end
+	return (name:gsub('%.[cC]4[zZiI]$', ''))
+end
+
+-- controller:// URL of a file inside this driver's package
+function DriverAsset(path)
+	local base = DriverFileBase():gsub('[^%w%-%._~%(%)]', function(c) return string.format('%%%02X', c:byte()) end)
+	return 'controller://driver/' .. base .. '/' .. path
+end
+
+-- Shows the installed file name and warns when icons cannot load.
+function CheckDriverFile()
+	local name = DriverFileName()
+	if (not name) then
+		C4:UpdateProperty('Driver File', 'unknown')
+		return true
+	end
+	if (DriverFileBase() == DRIVER_FILE) then
+		C4:UpdateProperty('Driver File', name)
+		return true
+	end
+	C4:UpdateProperty('Driver File', name .. ' (rename to ' .. DRIVER_FILE .. '.c4z)')
+	print('Shield Bridge: installed as "' .. name .. '". Control4 finds the driver\'s icons by file name, so the Now Playing buttons show "?" and the device icon is generic. Install the file named exactly ' .. DRIVER_FILE .. '.c4z.')
+	return false
 end
 
 function KillTimer(name)
@@ -812,8 +851,35 @@ function UpdateMediaInfo()
 	C4:SendToProxy(MSP_PROXY, 'UPDATE_MEDIA_INFO', args, 'COMMAND', true)
 end
 
+-- Now Playing transport bar. Two sets share it: playback, and a D-pad set for
+-- moving around the Shield's own menus with the poster still on screen. The
+-- last button of each set flips to the other. The mode is kept per navigator
+-- (key '*' when a press came without one, which flips the whole room).
+DASH_PLAYBACK = 'Ok Play Pause SkipFwd Menu DpadOn'
+DASH_DPAD = 'Back Left Up Ok Down Right DpadOff'
+DashMode = DashMode or {}
+
+function DashItems(navId)
+	local mode = (navId and DashMode[tostring(navId)]) or DashMode['*']
+	if (mode == 'dpad') then return DASH_DPAD end
+	return DASH_PLAYBACK
+end
+
 function UpdateDashboard(navId, roomId)
-	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>Ok Play Pause SkipFwd Menu</Items>')
+	-- a broadcast (source selected, show launched) puts every navigator back on playback
+	if (not navId) then DashMode = {} end
+	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
+end
+
+function SetDashMode(tParams, mode)
+	local navId = tParams.NAVID
+	if (navId) then
+		DashMode[tostring(navId)] = mode
+	else
+		DashMode = { ['*'] = mode }
+	end
+	SendEvent(MSP_PROXY, navId, tParams.ROOMID, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
+	if (navId and tParams.SEQ) then DataReceived(MSP_PROXY, navId, tParams.SEQ, '') end
 end
 
 function UpdateQueue(navId, roomId)
@@ -1033,7 +1099,7 @@ function RFP.GetRemote(tParams, args, idBinding)
 		table.insert(x, HeaderXml('Set Shield Control Device ID in Composer to enable these keys'))
 	end
 	for _, k in ipairs(REMOTE_KEYS) do
-		local icon = 'controller://driver/shield_bridge/icons/' .. k[3] .. '/' .. k[3] .. '_140.png'
+		local icon = DriverAsset('icons/' .. k[3] .. '/' .. k[3] .. '_140.png')
 		table.insert(x, '<item>' .. XMLTag('id', k[1]) .. XMLTag('title', k[2]) ..
 			'<image_list width="140" height="140">' .. icon .. '</image_list>' ..
 			'<default_action>RemoteKey</default_action></item>')
@@ -1052,6 +1118,9 @@ function RFP.RemoteKey(tParams, args, idBinding)
 	-- empty reply keeps the remote on screen for the next press
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
 end
+
+function RFP.DpadMode(tParams, args, idBinding) SetDashMode(tParams, 'dpad') end
+function RFP.PlaybackMode(tParams, args, idBinding) SetDashMode(tParams, 'playback') end
 
 function RFP.GetDashboard(tParams, args, idBinding)
 	UpdateDashboard(tParams.NAVID, tParams.ROOMID)
@@ -1078,8 +1147,10 @@ function RFP.SET_INPUT(tParams, args, idBinding) end
 function RFP.CONNECT_OUTPUT(tParams, args, idBinding) end
 function RFP.DISCONNECT_OUTPUT(tParams, args, idBinding) end
 function RFP.INPUT_OUTPUT_CHANGED(tParams, args, idBinding) end
-function RFP.DESTROY_NAVIGATOR(tParams, args, idBinding) end
-function RFP.DESTROY_NAV(tParams, args, idBinding) end
+function RFP.DESTROY_NAVIGATOR(tParams, args, idBinding)
+	if (tParams.NAVID) then DashMode[tostring(tParams.NAVID)] = nil end
+end
+RFP.DESTROY_NAV = RFP.DESTROY_NAVIGATOR
 function RFP.SettingChanged(tParams, args, idBinding)
 	local prop = args.PropertyName or args.propertyName
 	local value = args.Value or args.value
@@ -1767,6 +1838,9 @@ function EC.Test_Connection(tParams)
 	else
 		print('Remote keys: Shield Control Device ID is empty, so arrows and transport go nowhere')
 	end
+	if (CheckDriverFile()) then
+		print('Driver file: ' .. (DriverFileName() or 'unknown') .. ' (icons OK)')
+	end
 end
 
 function EC.Test_Search(tParams)
@@ -1895,6 +1969,7 @@ function OnDriverLateInit()
 	C4:AddVariable('LAST_LAUNCHED_APP', '', 'STRING', true, false)
 	C4:AddVariable('BRIDGE_ONLINE', 'false', 'STRING', true, false)
 	C4:UpdateProperty('Driver Version', DRIVER_VERSION)
+	CheckDriverFile()
 	-- One-time safety reset: an existing instance keeps its stored property
 	-- values on update, so force the no-power behaviour once. The installer can
 	-- re-enable room power afterwards in Properties.

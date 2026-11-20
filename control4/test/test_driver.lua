@@ -514,12 +514,100 @@ eq(ProxyIdFor(5002), 780, 'remote screen proxy id from its binding')
 ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navD', SEQ = '95' })
 local dash
 for i = #stub.proxyMessages, 1, -1 do local m = stub.proxyMessages[i] if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged') then dash = m.params.EVTARGS break end end
-eq(dash, '<Items>Ok Play Pause SkipFwd Menu</Items>', 'transport bar: OK left, Menu right, no rewind/fast-forward')
+eq(dash, '<Items>Ok Play Pause SkipFwd Menu DpadOn</Items>', 'transport bar: OK left, Menu right, D-pad toggle last')
 Properties['Shield Control Device'] = '4242'
 ReceivedFromProxy(5001, 'ENTER', {})
 eq(stub.deviceMessages[#stub.deviceMessages].command, 'ENTER', 'transport OK relays ENTER')
 ReceivedFromProxy(5001, 'MENU', {})
 eq(stub.deviceMessages[#stub.deviceMessages].command, 'MENU', 'transport Menu relays MENU')
+
+------------------------------------------------------------------ transport bar D-pad mode
+local function lastDash()
+	for i = #stub.proxyMessages, 1, -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged') then return m.params end
+	end
+end
+local PLAYBACK = '<Items>Ok Play Pause SkipFwd Menu DpadOn</Items>'
+local DPAD = '<Items>Back Left Up Ok Down Right DpadOff</Items>'
+ReceivedFromProxy(5001, 'DpadMode', { NAVID = 'navA', ROOMID = '14', SEQ = '96' })
+local d = lastDash()
+eq(d.EVTARGS, DPAD, 'D-pad button swaps the bar to arrows')
+eq(d.NAVID, 'navA', 'only the navigator that pressed it changes')
+eq(stub.proxyMessages[#stub.proxyMessages].command, 'DATA_RECEIVED', 'D-pad press is answered')
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navA', SEQ = '97' })
+eq(lastDash().EVTARGS, DPAD, 'navigator keeps D-pad mode when it asks again')
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navB', SEQ = '98' })
+eq(lastDash().EVTARGS, PLAYBACK, 'other navigators stay on playback')
+before = #stub.deviceMessages
+for _, k in ipairs({ 'LEFT', 'UP', 'DOWN', 'RIGHT', 'CANCEL' }) do ReceivedFromProxy(5001, k, { NAVID = 'navA', ROOMID = '14' }) end
+eq(#stub.deviceMessages, before + 5, 'arrow and back buttons relay')
+eq(stub.deviceMessages[before + 1].command, 'LEFT', 'left arrow relays LEFT')
+eq(stub.deviceMessages[before + 5].command, 'CANCEL', 'back relays CANCEL')
+eq(stub.deviceMessages[before + 5].device, 4242, 'arrows go to the Shield Control Device')
+ReceivedFromProxy(5001, 'PlaybackMode', { NAVID = 'navA', ROOMID = '14', SEQ = '99' })
+eq(lastDash().EVTARGS, PLAYBACK, 'playback button swaps back')
+-- a press without a navigator id flips the whole room
+ReceivedFromProxy(5001, 'DpadMode', { ROOMID = '14' })
+d = lastDash()
+check(d.EVTARGS == DPAD and d.NAVID == nil and d.ROOMS == '14', 'D-pad press without NAVID goes to the room')
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navC', SEQ = '100' })
+eq(lastDash().EVTARGS, DPAD, 'room-wide D-pad mode answers any navigator')
+ReceivedFromProxy(5001, 'PlaybackMode', { NAVID = 'navC', SEQ = '101' })
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navC', SEQ = '102' })
+eq(lastDash().EVTARGS, PLAYBACK, 'a navigator can leave room-wide D-pad mode')
+-- selecting the source (a broadcast) resets everyone to playback
+ReceivedFromProxy(5001, 'DpadMode', { NAVID = 'navA', SEQ = '103' })
+ReceivedFromProxy(5001, 'DEVICE_SELECTED', {})
+drain()
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navA', SEQ = '104' })
+eq(lastDash().EVTARGS, PLAYBACK, 'selecting the source resets D-pad mode')
+ReceivedFromProxy(5001, 'DpadMode', { NAVID = 'navA', SEQ = '105' })
+ReceivedFromProxy(5001, 'DESTROY_NAVIGATOR', { NAVID = 'navA' })
+eq(DashMode['navA'], nil, 'closed navigator forgets its mode')
+
+-- every button the driver asks for exists in driver.xml with an icon group
+do
+	local fh = assert(io.open('control4/shield_bridge/driver.xml'))
+	local xml = fh:read('*a')
+	fh:close()
+	local dashXml = xml:match('<Dashboard>(.-)</Dashboard>')
+	local transports = {}
+	for t in dashXml:gmatch('<Transport>(.-)</Transport>') do
+		transports[t:match('<Id>(.-)</Id>')] = t
+	end
+	for _, set in ipairs({ DASH_PLAYBACK, DASH_DPAD }) do
+		for id in set:gmatch('%S+') do
+			local t = transports[id]
+			check(t ~= nil, 'transport ' .. id .. ' is defined in driver.xml')
+			local icon = t and t:match('<IconId>(.-)</IconId>')
+			if (icon) then
+				find(xml, '<IconGroup id="' .. icon .. '">', 'icon group for ' .. id)
+				find(xml, 'controller://driver/shield_bridge/icons/' .. icon .. '/' .. icon .. '_70.png', 'icon file path for ' .. id)
+				local f = io.open('control4/shield_bridge/icons/' .. icon .. '/' .. icon .. '_70.png', 'rb')
+				check(f ~= nil, 'icon file exists for ' .. id)
+				if (f) then f:close() end
+			end
+		end
+	end
+	for path in xml:gmatch('controller://driver/([^<"]+)') do
+		if (not path:find('^shield_bridge/')) then check(false, 'icon path names the installed file: ' .. path) end
+	end
+end
+
+------------------------------------------------------------------ installed file name
+stub.driverFileName = 'shield_bridge.c4z'
+eq(DriverAsset('icons/x.png'), 'controller://driver/shield_bridge/icons/x.png', 'asset path from the canonical file name')
+eq(CheckDriverFile(), true, 'canonical file name passes')
+eq(Properties['Driver File'], 'shield_bridge.c4z', 'Driver File property shows the installed name')
+stub.driverFileName = 'shield_bridge (1).c4z'
+eq(DriverAsset('icons/x.png'), 'controller://driver/shield_bridge%20(1)/icons/x.png', 'asset path follows a renamed file')
+ReceivedFromProxy(5001, 'GetRemote', { NAVID = 'navR', SEQ = '106' })
+find(stub.proxyMessages[#stub.proxyMessages].params.DATA, 'controller://driver/shield_bridge%20(1)/icons/nav_up/nav_up_140.png', 'remote tab icons follow the installed name')
+eq(CheckDriverFile(), false, 'other file names are flagged')
+find(Properties['Driver File'], 'rename to shield_bridge.c4z', 'Driver File property says what to do')
+stub.driverFileName = nil
+eq(DriverAsset('icons/x.png'), 'controller://driver/shield_bridge/icons/x.png', 'asset path falls back to the canonical name')
 
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end

@@ -12,9 +12,15 @@ network setting must be Enabled or Permissive.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.0"
+DRIVER_VERSION = "0.1.1"
 
 MSP_PROXY = 5001
+
+-- Control4 serves the files inside a .c4z at controller://driver/<installed file
+-- name without .c4z>/. driver.xml has to spell that name out, so the driver must
+-- be installed as roku_bridge.c4z; under any other name every custom icon is a
+-- "?". Paths built in Lua follow the real name.
+DRIVER_FILE = 'roku_bridge'
 
 Roku = Roku or {
 	online = nil,       -- nil = unknown
@@ -77,6 +83,40 @@ function URLEncode(s)
 	s = tostring(s)
 	s = s:gsub('([^%w%-%_%.%~])', function (c) return string.format('%%%02X', string.byte(c)) end)
 	return s
+end
+
+function DriverFileName()
+	local ok, name = pcall(function() return C4:GetDriverFileName() end)
+	if (ok and type(name) == 'string' and name ~= '') then return name end
+	return nil
+end
+
+function DriverFileBase()
+	local name = DriverFileName()
+	if (not name) then return DRIVER_FILE end
+	return (name:gsub('%.[cC]4[zZiI]$', ''))
+end
+
+-- controller:// URL of a file inside this driver's package
+function DriverAsset(path)
+	local base = DriverFileBase():gsub('[^%w%-%._~%(%)]', function(c) return string.format('%%%02X', c:byte()) end)
+	return 'controller://driver/' .. base .. '/' .. path
+end
+
+-- Shows the installed file name and warns when icons cannot load.
+function CheckDriverFile()
+	local name = DriverFileName()
+	if (not name) then
+		C4:UpdateProperty('Driver File', 'unknown')
+		return true
+	end
+	if (DriverFileBase() == DRIVER_FILE) then
+		C4:UpdateProperty('Driver File', name)
+		return true
+	end
+	C4:UpdateProperty('Driver File', name .. ' (rename to ' .. DRIVER_FILE .. '.c4z)')
+	print('Roku Bridge: installed as "' .. name .. '". Control4 finds the driver\'s icons by file name, so custom buttons show "?" and the device icon is generic. Install the file named exactly ' .. DRIVER_FILE .. '.c4z.')
+	return false
 end
 
 function KillTimer(name)
@@ -1123,7 +1163,7 @@ end
 function RFP.GetRemote(tParams, args, idBinding)
 	local x = { '<List>' }
 	for _, k in ipairs(REMOTE_KEYS) do
-		local icon = 'controller://driver/roku_bridge/icons/' .. k[3] .. '/' .. k[3] .. '_140.png'
+		local icon = DriverAsset('icons/' .. k[3] .. '/' .. k[3] .. '_140.png')
 		table.insert(x, '<item>' .. XMLTag('id', k[1]) .. XMLTag('title', k[2]) ..
 			'<image_list width="140" height="140">' .. icon .. '</image_list>' ..
 			'<default_action>RemoteKey</default_action></item>')
@@ -1424,6 +1464,9 @@ function EC.Refresh(tParams)
 end
 
 function EC.Test_Connection(tParams)
+	if (CheckDriverFile()) then
+		print('Roku Bridge: driver file ' .. (DriverFileName() or 'unknown') .. ' (icons OK)')
+	end
 	Ecp('GET', '/query/device-info', function(err, body)
 		if (err == 'limited') then
 			print('Roku Bridge: ' .. LIMITED_HELP)
@@ -1524,6 +1567,7 @@ function OnDriverLateInit()
 	C4:AddVariable('ACTIVE_APP', '', 'STRING', true, false)
 	C4:AddVariable('ROKU_ONLINE', 'false', 'STRING', true, false)
 	C4:UpdateProperty('Driver Version', DRIVER_VERSION)
+	CheckDriverFile()
 	for name, _ in pairs(Properties) do OnPropertyChanged(name) end
 end
 

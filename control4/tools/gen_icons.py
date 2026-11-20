@@ -9,7 +9,7 @@ design-tool assets; re-run this script to regenerate.
 import os
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DRIVER_ICONS = os.path.join(ROOT, "shield_bridge", "icons")
@@ -152,6 +152,16 @@ def nav_glyph(size, kind):
         for dy in (-0.6, 0.0, 0.6):
             y = cy + dy * r
             d.rounded_rectangle([cx - r, y - bh / 2, cx + r, y + bh / 2], radius=int(bh / 2), fill=WHITE)
+    elif kind == "dpad":
+        a = r * 0.3
+        for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+            px, py = cx + dx * r * 0.82, cy + dy * r * 0.82
+            if dx == 0:
+                d.polygon([(px, py + dy * a), (px - a, py - dy * a * 0.7), (px + a, py - dy * a * 0.7)], fill=WHITE)
+            else:
+                d.polygon([(px + dx * a, py), (px - dx * a * 0.7, py - a), (px - dx * a * 0.7, py + a)], fill=WHITE)
+        c = r * 0.2
+        d.ellipse([cx - c, cy - c, cx + c, cy + c], fill=WHITE)
     elif kind == "playpause":
         # play triangle + pause bars, side by side
         d.polygon([(cx - r, cy - r * 0.7), (cx - r, cy + r * 0.7), (cx - r * 0.1, cy)], fill=WHITE)
@@ -159,6 +169,129 @@ def nav_glyph(size, kind):
         d.rectangle([cx + r * 0.25, cy - r * 0.7, cx + r * 0.25 + bw, cy + r * 0.7], fill=WHITE)
         d.rectangle([cx + r * 0.6, cy - r * 0.7, cx + r * 0.6 + bw, cy + r * 0.7], fill=WHITE)
     return finish(img, size)
+
+
+
+# --- Shield Bridge emblem ---------------------------------------------------
+# A shield with a lime-to-emerald rim, a dark interior and a white play mark,
+# glowing on a dark tile. The remote variant swaps the play mark for a D-pad.
+# Drawn once at 2048 px and scaled down, so small sizes stay crisp.
+
+EMBLEM_A = (176, 234, 52, 255)    # lime, top-left of the rim
+EMBLEM_B = (18, 176, 122, 255)    # emerald, bottom-right of the rim
+INNER_A = (16, 40, 28, 255)
+INNER_B = (4, 12, 9, 255)
+TILE_A = (20, 30, 48, 255)
+TILE_B = (6, 10, 18, 255)
+
+
+def _quad(p0, p1, p2, n=48):
+    out = []
+    for i in range(n + 1):
+        t = i / n
+        a, b, c = (1 - t) ** 2, 2 * (1 - t) * t, t ** 2
+        out.append((a * p0[0] + b * p1[0] + c * p2[0], a * p0[1] + b * p1[1] + c * p2[1]))
+    return out
+
+
+def shield_points(cx, top, w, h):
+    left, right = cx - w / 2, cx + w / 2
+    shoulder = top + 0.40 * h
+    pts = _quad((left, top), (cx, top + 0.12 * h), (right, top))
+    pts.append((right, shoulder))
+    pts += _quad((right, shoulder), (right, top + 0.82 * h), (cx, top + h))[1:]
+    pts += _quad((cx, top + h), (left, top + 0.82 * h), (left, shoulder))[1:]
+    return pts
+
+
+def _gradient(size, c1, c2, diagonal=False):
+    v = Image.linear_gradient("L").resize(size)
+    mask = Image.blend(Image.linear_gradient("L").rotate(90).resize(size), v, 0.5) if diagonal else v
+    return Image.composite(Image.new("RGBA", size, c2), Image.new("RGBA", size, c1), mask)
+
+
+def _mask(size, pts):
+    m = Image.new("L", size, 0)
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    return m
+
+
+def _paint(base, layer_rgba, mask):
+    base.alpha_composite(Image.composite(layer_rgba, Image.new("RGBA", base.size, (0, 0, 0, 0)), mask))
+
+
+def render_emblem(S=2048, symbol="play", tile_bg=True):
+    size = (S, S)
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    if tile_bg:
+        tmask = Image.new("L", size, 0)
+        ImageDraw.Draw(tmask).rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * 0.22), fill=255)
+        _paint(img, _gradient(size, TILE_A, TILE_B), tmask)
+        w, h, top = 0.56 * S, 0.66 * S, 0.15 * S
+    else:
+        w, h, top = 0.74 * S, 0.88 * S, 0.05 * S
+    cx = S / 2
+    outer = shield_points(cx, top, w, h)
+    omask = _mask(size, outer)
+
+    # soft green glow behind the shield
+    glow = omask.filter(ImageFilter.GaussianBlur(S * 0.05)).point(lambda v: int(v * 0.55))
+    _paint(img, Image.new("RGBA", size, (90, 210, 90, 255)), glow)
+    if tile_bg:
+        # grounded shadow
+        sh = Image.new("L", size, 0)
+        sh.paste(omask, (0, int(S * 0.025)))
+        sh = sh.filter(ImageFilter.GaussianBlur(S * 0.02)).point(lambda v: int(v * 0.6))
+        _paint(img, Image.new("RGBA", size, (0, 0, 0, 255)), sh)
+
+    # rim, then dark interior
+    _paint(img, _gradient(size, EMBLEM_A, EMBLEM_B, diagonal=True), omask)
+    t = w * 0.075
+    inner = shield_points(cx, top + t, w - 2 * t, h - 2.5 * t)
+    imask = _mask(size, inner)
+    _paint(img, _gradient(size, INNER_A, INNER_B), imask)
+
+    # gloss on the upper-left of the interior
+    gl = Image.new("L", size, 0)
+    ImageDraw.Draw(gl).ellipse([cx - w * 0.9, top - h * 0.55, cx + w * 0.25, top + h * 0.38], fill=38)
+    gl = Image.composite(gl, Image.new("L", size, 0), imask)
+    _paint(img, Image.new("RGBA", size, (255, 255, 255, 255)), gl)
+
+
+    # centre symbol with its own glow
+    sym = Image.new("L", size, 0)
+    sd = ImageDraw.Draw(sym)
+    scy = top + 0.44 * h
+    if symbol == "play":
+        r = S * 0.13
+        sd.polygon([(cx - r * 0.62, scy - r), (cx - r * 0.62, scy + r), (cx + r * 0.95, scy)], fill=255)
+    else:  # D-pad
+        R = S * 0.14
+        ring = max(2, int(S * 0.022))
+        sd.ellipse([cx - R, scy - R, cx + R, scy + R], outline=255, width=ring)
+        a = S * 0.042
+        for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+            px, py = cx + dx * R * 0.58, scy + dy * R * 0.58
+            if dx == 0:
+                sd.polygon([(px, py + dy * a), (px - a, py - dy * a * 0.6), (px + a, py - dy * a * 0.6)], fill=255)
+            else:
+                sd.polygon([(px + dx * a, py), (px - dx * a * 0.6, py - a), (px - dx * a * 0.6, py + a)], fill=255)
+        c = S * 0.03
+        sd.ellipse([cx - c, scy - c, cx + c, scy + c], fill=255)
+    sglow = sym.filter(ImageFilter.GaussianBlur(S * 0.025)).point(lambda v: int(v * 0.7))
+    _paint(img, Image.new("RGBA", size, (140, 255, 120, 255)), sglow)
+    _paint(img, Image.new("RGBA", size, (250, 252, 248, 255)), sym)
+    return img
+
+
+_EMBLEM_CACHE = {}
+
+
+def emblem(size, symbol="play", tile_bg=True):
+    key = (symbol, tile_bg)
+    if key not in _EMBLEM_CACHE:
+        _EMBLEM_CACHE[key] = render_emblem(2048, symbol, tile_bg)
+    return _EMBLEM_CACHE[key].resize((size, size), Image.LANCZOS)
 
 
 def save(img, path):
@@ -176,18 +309,32 @@ def driver_icons(name, accent):
     global ACCENT
     ACCENT = accent
     icons = os.path.join(ROOT, name, "icons")
+    if name == "shield_bridge":
+        dev = lambda z: emblem(z, "play", True)
+        brand = lambda z: emblem(z, "play", False)
+    else:
+        dev, brand = device_icon, branding_icon
     for sz in sorted(set(MSP_SIZES + DISPLAY_SIZES)):
-        save(device_icon(sz), os.path.join(icons, "device", f"device_{sz}.png"))
-        save(branding_icon(sz), os.path.join(icons, "branding", f"branding_{sz}.png"))
+        save(dev(sz), os.path.join(icons, "device", f"device_{sz}.png"))
+        save(brand(sz), os.path.join(icons, "branding", f"branding_{sz}.png"))
     for sz in DISPLAY_SIZES:
-        save(device_icon(sz), os.path.join(icons, "device", f"experience_{sz}.png"))
+        save(dev(sz), os.path.join(icons, "device", f"experience_{sz}.png"))
     for sz in TAB_SIZES:
         save(tab_continue(sz), os.path.join(icons, "tab_continue", f"tab_continue_{sz}.png"))
         save(tab_apps(sz), os.path.join(icons, "tab_apps", f"tab_apps_{sz}.png"))
-    save(device_icon(32), os.path.join(icons, "device_sm.png"))
-    save(device_icon(64), os.path.join(icons, "device_lg.png"))
+    save(dev(32), os.path.join(icons, "device_sm.png"))
+    save(dev(64), os.path.join(icons, "device_lg.png"))
+    if name == "shield_bridge":
+        # Shield Bridge Remote: same emblem with a D-pad
+        for sz in sorted(set(MSP_SIZES + DISPLAY_SIZES)):
+            save(emblem(sz, "dpad", True), os.path.join(icons, "remote", f"experience_{sz}.png"))
+        save(emblem(32, "dpad", True), os.path.join(icons, "remote_sm.png"))
+        save(emblem(64, "dpad", True), os.path.join(icons, "remote_lg.png"))
     # On-screen control glyphs
-    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff", "menu"):
+    kinds = ["up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff", "menu"]
+    if name == "shield_bridge":
+        kinds.append("dpad")   # transport-bar toggle into D-pad mode
+    for kind in kinds:
         nm = "nav_" + kind
         for sz in TAB_SIZES:
             save(nav_glyph(sz, kind), os.path.join(icons, nm, f"{nm}_{sz}.png"))
@@ -199,10 +346,10 @@ def main():
         driver_icons(name, DRIVERS[name])
 
     # Android app resources
-    save(device_icon(192), os.path.join(APP_RES, "mipmap", "ic_launcher.png"))
+    save(emblem(192, "play", True), os.path.join(APP_RES, "mipmap", "ic_launcher.png"))
     banner = Image.new("RGBA", (320, 180), BG)
-    icon = device_icon(120)
-    banner.paste(icon, (30, 30), icon)
+    icon = emblem(130, "play", False)
+    banner.paste(icon, (22, 25), icon)
     d = ImageDraw.Draw(banner)
     # simple wordmark made of bars so we don't depend on fonts being installed
     d.rounded_rectangle([170, 60, 290, 78], radius=8, fill=WHITE)

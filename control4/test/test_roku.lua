@@ -366,5 +366,26 @@ ExecuteCommand('LUA_ACTION', { ACTION = 'Test Connection' })
 respondTo('/query/device-info', 200, '<device-info><model-name>Roku Ultra</model-name><friendly-device-name>Theater Roku</friendly-device-name><software-version>14.6.0</software-version><ecp-setting-mode>enabled</ecp-setting-mode></device-info>')
 check(respondTo('/query/apps', 200, APPS_XML) ~= nil, 'Test Connection verifies a real command')
 
+------------------------------------------------------------------ installed file name
+stub.driverFileName = 'roku_bridge.c4z'
+eq(DriverAsset('icons/x.png'), 'controller://driver/roku_bridge/icons/x.png', 'asset path from the canonical file name')
+eq(CheckDriverFile(), true, 'canonical file name passes')
+eq(Properties['Driver File'], 'roku_bridge.c4z', 'Driver File property shows the installed name')
+stub.driverFileName = 'Roku Bridge v2.c4z'
+eq(DriverAsset('icons/x.png'), 'controller://driver/Roku%20Bridge%20v2/icons/x.png', 'asset path follows a renamed file')
+eq(CheckDriverFile(), false, 'other file names are flagged')
+stub.driverFileName = nil
+do
+	local fh = assert(io.open('control4/roku_bridge/driver.xml'))
+	local xml = fh:read('*a')
+	fh:close()
+	for path in xml:gmatch('controller://driver/([^<"]+)') do
+		if (not path:find('^roku_bridge/')) then check(false, 'icon path names the installed file: ' .. path) end
+	end
+	for icon in xml:gmatch('<IconId>(.-)</IconId>') do
+		find(xml, '<IconGroup id="' .. icon .. '">', 'icon group for ' .. icon)
+	end
+end
+
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end
