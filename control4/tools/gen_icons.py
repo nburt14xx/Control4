@@ -147,6 +147,11 @@ def nav_glyph(size, kind):
         for off in (-0.55, 0.45):
             bx = cx + sign * off * r
             d.polygon([(bx - sign * r * 0.55, cy - r * 0.8), (bx - sign * r * 0.55, cy + r * 0.8), (bx + sign * r * 0.55, cy)], fill=WHITE)
+    elif kind == "menu":
+        bh = max(2, int(r * 0.22))
+        for dy in (-0.6, 0.0, 0.6):
+            y = cy + dy * r
+            d.rounded_rectangle([cx - r, y - bh / 2, cx + r, y + bh / 2], radius=int(bh / 2), fill=WHITE)
     elif kind == "playpause":
         # play triangle + pause bars, side by side
         d.polygon([(cx - r, cy - r * 0.7), (cx - r, cy + r * 0.7), (cx - r * 0.1, cy)], fill=WHITE)
@@ -182,7 +187,7 @@ def driver_icons(name, accent):
     save(device_icon(32), os.path.join(icons, "device_sm.png"))
     save(device_icon(64), os.path.join(icons, "device_lg.png"))
     # On-screen control glyphs
-    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff"):
+    for kind in ("up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff", "menu"):
         nm = "nav_" + kind
         for sz in TAB_SIZES:
             save(nav_glyph(sz, kind), os.path.join(icons, nm, f"{nm}_{sz}.png"))

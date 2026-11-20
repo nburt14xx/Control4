@@ -510,5 +510,16 @@ stub.roomDevice[12] = nil
 eq(ProxyIdFor(5001), 777, 'browse screen proxy id from its binding')
 eq(ProxyIdFor(5002), 780, 'remote screen proxy id from its binding')
 
+------------------------------------------------------------------ transport bar layout
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navD', SEQ = '95' })
+local dash
+for i = #stub.proxyMessages, 1, -1 do local m = stub.proxyMessages[i] if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged') then dash = m.params.EVTARGS break end end
+eq(dash, '<Items>Ok Play Pause SkipFwd Menu</Items>', 'transport bar: OK left, Menu right, no rewind/fast-forward')
+Properties['Shield Control Device'] = '4242'
+ReceivedFromProxy(5001, 'ENTER', {})
+eq(stub.deviceMessages[#stub.deviceMessages].command, 'ENTER', 'transport OK relays ENTER')
+ReceivedFromProxy(5001, 'MENU', {})
+eq(stub.deviceMessages[#stub.deviceMessages].command, 'MENU', 'transport Menu relays MENU')
+
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end

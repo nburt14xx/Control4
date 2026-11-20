@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>9</version>
+  <version>10</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -651,6 +651,21 @@
           <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_ff/nav_ff_130.png</Icon>
           <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_ff/nav_ff_140.png</Icon>
         </IconGroup>
+        <IconGroup id="nav_menu">
+          <Icon width="20" height="20">controller://driver/shield_bridge/icons/nav_menu/nav_menu_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/shield_bridge/icons/nav_menu/nav_menu_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/shield_bridge/icons/nav_menu/nav_menu_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/shield_bridge/icons/nav_menu/nav_menu_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/shield_bridge/icons/nav_menu/nav_menu_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/shield_bridge/icons/nav_menu/nav_menu_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/shield_bridge/icons/nav_menu/nav_menu_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/shield_bridge/icons/nav_menu/nav_menu_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/shield_bridge/icons/nav_menu/nav_menu_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/shield_bridge/icons/nav_menu/nav_menu_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/shield_bridge/icons/nav_menu/nav_menu_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/shield_bridge/icons/nav_menu/nav_menu_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/shield_bridge/icons/nav_menu/nav_menu_140.png</Icon>
+        </IconGroup>
       </Icons>
       <Search>
         <Filters>
@@ -1278,6 +1293,26 @@
         </Action>
       </Actions>
       <Dashboard>
+        <Transport>
+          <Id>Ok</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>OK</Name>
+          <IconId>nav_ok</IconId>
+          <ReleaseCommand>
+            <Name>ENTER</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Menu</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Menu</Name>
+          <IconId>nav_menu</IconId>
+          <ReleaseCommand>
+            <Name>MENU</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
         <Transport>
           <Id>ScanRev</Id>
           <ButtonType>CUSTOM</ButtonType>

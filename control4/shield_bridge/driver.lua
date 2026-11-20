@@ -13,7 +13,7 @@ are forwarded to whatever driver is bound to its Video In connection.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.4.0"
+DRIVER_VERSION = "0.4.1"
 
 MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
 REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
@@ -813,7 +813,7 @@ function UpdateMediaInfo()
 end
 
 function UpdateDashboard(navId, roomId)
-	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>ScanRev Play Pause ScanFwd SkipFwd</Items>')
+	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>Ok Play Pause SkipFwd Menu</Items>')
 end
 
 function UpdateQueue(navId, roomId)
