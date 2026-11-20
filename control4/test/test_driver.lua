@@ -136,7 +136,7 @@ local before = #stub.deviceMessages
 ReceivedFromProxy(5001, 'LaunchItem', { NAVID = 'nav1', SEQ = '8', ROOMID = '12',
 	ARGS = '<params><param name="id">101</param><param name="title">Severance</param></params>' })
 local sel = stub.deviceMessages[before + 1]
-check(sel and sel.device == 12 and sel.command == 'SELECT_VIDEO_DEVICE' and sel.params.deviceid == 780, 'navigator launch puts the room on Shield Bridge Remote')
+check(sel and sel.device == 12 and sel.command == 'SELECT_VIDEO_DEVICE' and sel.params.deviceid == stub.proxyDeviceId, 'room selects our video device')
 eq(stub.wol[#stub.wol], '00044baabbcc', 'WOL sent')
 local wakeReq, launchReq
 for _, r in ipairs(stub.urlRequests) do
@@ -360,22 +360,14 @@ eq(selectsSent(), n0, 'Never: no room select')
 Properties['Select Room Source'] = 'Select Shield'
 SelectInRoom('12')
 eq(selectsSent(), n0, 'legacy Select Shield value sends nothing')
--- Select Shield Bridge: puts the room on Shield Bridge Remote, unless already there
-RecentSelect = {}
+-- Select Shield Bridge: selects this source, unless the room is already on it
 Properties['Select Room Source'] = 'Select Shield Bridge'
 SelectInRoom('12')
 eq(selectsSent(), n0 + 1, 'Select Shield Bridge: sends a select')
-eq(lastSelect().params.deviceid, 780, 'Select Shield Bridge: targets the remote screen, never the browse screen')
-RecentSelect = {}
-stub.roomDevice[12] = 780
+eq(lastSelect().params.deviceid, stub.proxyDeviceId, 'Select Shield Bridge: targets this driver')
+stub.roomDevice[12] = stub.proxyDeviceId
 SelectInRoom('12')
-eq(selectsSent(), n0 + 1, 'no re-select when the room is already on the remote screen')
--- a second launch right after the first does not select twice while the room variable catches up
-stub.roomDevice[12] = 555
-SelectInRoom('12')
-SelectInRoom('12')
-eq(selectsSent(), n0 + 2, 'one select per room within a few seconds')
-RecentSelect = {}
+eq(selectsSent(), n0 + 1, 'no re-select when the room is already on Shield Bridge')
 stub.roomDevice[12] = nil
 
 ------------------------------------------------------------------ rows property------------------------------------------------------------------ rows property
@@ -493,9 +485,8 @@ ReceivedFromProxy(5002, 'GET_COVERART', {})
 eq(#stub.deviceMessages, nd, 'unknown remote-screen command ignored')
 
 ------------------------------------------------------------------ After Launch: Switch to Remote
-RecentSelect = {}
 Properties['After Launch'] = 'Switch to Remote'
-stub.roomDevice[12] = stub.proxyDeviceId   -- room is on something else
+stub.roomDevice[12] = stub.proxyDeviceId   -- room is on the browse screen
 Bridge.itemsById = Bridge.itemsById or {}
 ReceivedFromProxy(5001, 'LaunchApp', { NAVID = 'navX', SEQ = '90', ROOMID = '12', ARGS = '<params><param name="id">com.netflix.ninja</param></params>' })
 local sw
@@ -514,15 +505,6 @@ eq(nsel2, nsel, 'no re-select when the room is already on the remote screen')
 drain()
 -- launches from programming carry no navigator room: fall back to Now Playing
 eq(AfterLaunchScreen(nil), '<NextScreen>#nowplaying</NextScreen>', 'no room id: Now Playing instead of a switch')
--- Go to Now Playing still puts the room on the remote screen, then shows Now Playing
-RecentSelect = {}
-Properties['After Launch'] = 'Go to Now Playing'
-stub.roomDevice[12] = 0          -- room off
-local before = #stub.deviceMessages
-eq(AfterLaunchScreen('12'), '<NextScreen>#nowplaying</NextScreen>', 'Go to Now Playing shows Now Playing')
-local lastDm = stub.deviceMessages[#stub.deviceMessages]
-check(#stub.deviceMessages == before + 1 and lastDm.command == 'SELECT_VIDEO_DEVICE' and lastDm.params.deviceid == 780, 'a room that is off is turned on with the remote screen')
-RecentSelect = {}
 Properties['After Launch'] = 'Go to Now Playing'
 stub.roomDevice[12] = nil
 eq(ProxyIdFor(5001), 777, 'browse screen proxy id from its binding')

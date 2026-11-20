@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/18/2025 12:00 AM</modified>
-  <version>12</version>
+  <version>13</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -77,7 +77,7 @@
         </items>
         <default>Never</default>
         <readonly>false</readonly>
-        <tooltip>For keypad or scene launches only: whether to also put the room on Shield Bridge Remote. Launches from Navigator always do.</tooltip>
+        <tooltip>Whether a launch also selects Shield Bridge in the room. Leave on Never when launching from Navigator. Use Select Shield Bridge if a keypad or scene should turn the room on and start a show; it is skipped when the room is already on Shield Bridge.</tooltip>
       </property>
       <property>
         <name>Launch Delay (ms)</name>
@@ -98,7 +98,7 @@
         </items>
         <default>Go to Now Playing</default>
         <readonly>false</readonly>
-        <tooltip>Starting a show always puts the room on Shield Bridge Remote (turning the room on if needed). This picks the screen shown afterwards: Now Playing with the poster, the standard remote, or stay on the list.</tooltip>
+        <tooltip>What happens after starting a show. Switch to Remote moves the room to Shield Bridge Remote, the standard Control4 remote screen; the poster stays on Shield Bridge's own Now Playing.</tooltip>
       </property>
       <property>
         <name>Shield Control Device ID</name>
@@ -341,7 +341,7 @@
     <hide_in_media>True</hide_in_media>
     <video_provider_count>1</video_provider_count>
     <digital_audio_support>False</digital_audio_support>
-    <ui_selects_device>False</ui_selects_device>
+    <ui_selects_device>True</ui_selects_device>
     <list_nowplaying_non_c4>True</list_nowplaying_non_c4>
     <has_menu>True</has_menu>
     <has_play>True</has_play>
