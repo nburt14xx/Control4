@@ -12,7 +12,7 @@ network setting must be Enabled or Permissive.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.2.1"
+DRIVER_VERSION = "0.3.0"
 
 MSP_PROXY = 5001
 
@@ -459,7 +459,7 @@ function BuildChannelsList(apps, notice)
 	for _, a in ipairs(apps or {}) do
 		table.insert(x, '<item>' .. XMLTag('id', a.id) .. XMLTag('title', a.name) ..
 			'<image_list width="290" height="218">' .. XMLEncode(ChannelIcon(a.id)) .. '</image_list>' ..
-			'<default_action>LaunchChannel</default_action></item>')
+			'<default_action>LaunchChannel</default_action><actions_list>LaunchChannel FavoriteToRoom</actions_list></item>')
 	end
 	if (#(apps or {}) == 0 and not notice) then
 		table.insert(x, '<item>' .. XMLTag('title', 'No channels reported') .. '</item>')
@@ -570,7 +570,7 @@ function RecentItemXml(r)
 	if (r.poster and r.poster ~= '') then
 		table.insert(x, '<image_list width="240" height="360">' .. XMLEncode(r.poster) .. '</image_list>')
 	end
-	table.insert(x, '<default_action>LaunchRecent</default_action><actions_list>LaunchRecent RemoveRecent</actions_list></item>')
+	table.insert(x, '<default_action>LaunchRecent</default_action><actions_list>LaunchRecent FavoriteToRoom RemoveRecent</actions_list></item>')
 	return table.concat(x)
 end
 
@@ -587,7 +587,8 @@ function BuildRecentList()
 end
 
 function LaunchRecentRecord(r, roomId)
-	LaunchChannel(r.channelId, r.contentId, r.mediaType,
+	local contentId = (r.contentId and r.contentId ~= '') and r.contentId or nil
+	LaunchChannel(r.channelId, contentId, r.mediaType,
 		{ title = r.title, subtitle = r.subtitle, app = r.channelName, art = r.poster, key = RecentKey(r), channelId = r.channelId }, roomId)
 	PushRecent(r)  -- move to the top
 end
@@ -943,7 +944,12 @@ function ShowItemXml(show, playable, installable, other)
 	end
 	if (#playable + #installable > 0) then
 		table.insert(x, '<default_action>SearchPick</default_action>')
-		if (#playable ~= 1) then table.insert(x, '<isLink>true</isLink>') end
+		if (#playable ~= 1) then
+			table.insert(x, '<isLink>true</isLink>')
+		else
+			-- one channel plays it: it can go straight to the room's favorites
+			table.insert(x, '<actions_list>SearchPick FavoriteToRoom</actions_list>')
+		end
 	end
 	table.insert(x, '</item>')
 	return table.concat(x)
@@ -1001,16 +1007,17 @@ function RokuContentId(serviceId, url)
 	return url:match('([^/]+)$')
 end
 
-function LaunchShowOption(show, e, roomId)
-	local opt = e.opt
+-- The record a search result launches with (also what Recent and favorites keep).
+function ShowRecord(show, e)
 	local mediaType = (show.showType == 'series') and 'series' or 'movie'
-	local contentId = RokuContentId(e.serviceId, opt.link)
+	local contentId = RokuContentId(e.serviceId, e.opt.link)
 	local poster = ShowPoster(show)
-	local rec = { title = show.title or '', subtitle = e.appLabel, poster = poster or '', channelId = e.channelId,
+	return { title = show.title or '', subtitle = e.appLabel, poster = poster or '', channelId = e.channelId,
 		channelName = e.appLabel, contentId = contentId or '', mediaType = mediaType, serviceId = e.serviceId }
-	LaunchChannel(e.channelId, contentId, mediaType,
-		{ title = rec.title, subtitle = rec.subtitle, app = rec.channelName, art = poster, key = RecentKey(rec), channelId = e.channelId }, roomId)
-	PushRecent(rec)
+end
+
+function LaunchShowOption(show, e, roomId)
+	LaunchRecentRecord(ShowRecord(show, e), roomId)
 end
 
 function InstallChannel(e)
@@ -1350,7 +1357,7 @@ function RFP.GetWhereToWatch(tParams, args, idBinding)
 		table.insert(x, '<item>' .. XMLTag('id', id .. '|' .. i) .. XMLTag('title', tostring(e.appLabel)) ..
 			XMLTag('subtitle', OptionDescription(e.opt)) ..
 			'<image_list width="290" height="218">' .. XMLEncode(ChannelIcon(e.channelId)) .. '</image_list>' ..
-			'<default_action>SearchPlay</default_action></item>')
+			'<default_action>SearchPlay</default_action><actions_list>SearchPlay FavoriteToRoom</actions_list></item>')
 	end
 	if (#installable > 0) then
 		table.insert(x, HeaderXml('Not installed'))
@@ -1410,6 +1417,63 @@ end
 
 function RFP.DpadMode(tParams, args, idBinding) SetDashMode(tParams, 'dpad') end
 function RFP.PlaybackMode(tParams, args, idBinding) SetDashMode(tParams, 'playback') end
+
+-------------------------------------------------------------------------------
+-- Room favorites: any channel, recently launched title or search result can be
+-- pinned to the room's home screen. The favorite keeps the deep link itself, so
+-- it keeps working after the title leaves Recent or the search expires.
+-------------------------------------------------------------------------------
+
+function FavoriteFor(screen, id)
+	if (screen == 'ChannelsScreen' or (screen == '' and Roku.appsById[id])) then
+		local app = Roku.appsById[id]
+		if (not app) then return nil end
+		return { kind = 'channel', channelId = id, title = app.name or ('Channel ' .. id), art = ChannelIcon(id) }
+	end
+	if (screen == 'RecentScreen' or (screen == '' and FindRecent(id))) then
+		local r = FindRecent(id)
+		if (not r) then return nil end
+		return { kind = 'title', record = r, title = r.title, art = r.poster }
+	end
+	-- search results ("<show>") and where-to-watch options ("<show>|<n>")
+	local showId, idx = id:match('^(.-)|(%d+)$')
+	showId = showId or id
+	local show = Finder.shows[showId]
+	if (not show) then return nil end
+	local playable = ShowOptions(show)
+	local e = playable[tonumber(idx) or 1]
+	if (not e or (not idx and #playable ~= 1)) then return nil end
+	local r = ShowRecord(show, e)
+	return { kind = 'title', record = r, title = r.title, art = r.poster }
+end
+
+function RFP.FavoriteToRoom(tParams, args, idBinding)
+	local fav = FavoriteFor(tostring(args.screenId or ''), tostring(args.id or ''))
+	if (not fav) then
+		DataReceivedError(idBinding, tParams.NAVID, tParams.SEQ, 'Nothing to add; pick a channel, a recent title or a search result')
+		return
+	end
+	PersistData.favorites = PersistData.favorites or {}
+	local favId = tostring(os.time()) .. '_' .. tostring(args.id or ''):gsub('[^%w]', '')
+	PersistData.favorites[favId] = fav
+	local x = '<FavoriteResponse>' .. XMLTag('Title', fav.title) ..
+		((fav.art and fav.art ~= '') and ('<ImageUrl width="512" height="512">' .. XMLEncode(fav.art) .. '</ImageUrl>') or '') ..
+		'<Context>' .. XMLTag('favoriteId', favId) .. '</Context></FavoriteResponse>'
+	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, x)
+end
+
+function RFP.jumpToFavorite(tParams, args, idBinding)
+	local favId = tostring(args.id or args.favoriteId or '')
+	local fav = PersistData.favorites and PersistData.favorites[favId]
+	if (not fav) then
+		print('Roku Bridge: unknown favorite ' .. favId)
+	elseif (fav.kind == 'channel') then
+		LaunchChannel(fav.channelId, nil, nil, { title = fav.title, app = fav.title, art = fav.art, channelId = fav.channelId }, tParams.ROOMID)
+	else
+		LaunchRecentRecord(fav.record, tParams.ROOMID)
+	end
+	if (tParams.NAVID and tParams.SEQ) then DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '') end
+end
 
 function RFP.GetDashboard(tParams, args, idBinding)
 	UpdateDashboard(tParams.NAVID, tParams.ROOMID)

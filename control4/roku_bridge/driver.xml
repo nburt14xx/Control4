@@ -7,7 +7,7 @@
   <model>Roku players and TVs - Search and Control</model>
   <created>11/19/2026 12:00 AM</created>
   <modified>11/19/2026 12:00 AM</modified>
-  <version>3</version>
+  <version>4</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -925,7 +925,44 @@
             </IsHeader>
           </List>
       </NowPlaying>
+      <FavoriteCommand>
+        <Name>jumpToFavorite</Name>
+        <Type>PROTOCOL</Type>
+        <Params>
+          <Param>
+            <Name>id</Name>
+            <Type>FIRST_SELECTED</Type>
+            <Value>favoriteId</Value>
+          </Param>
+        </Params>
+      </FavoriteCommand>
       <Actions>
+        <Action>
+          <Id>FavoriteToRoom</Id>
+          <Name>Add to Room Favorites</Name>
+          <Command>
+            <Name>FavoriteToRoom</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>tabId</Name>
+                <Type>SYSTEM</Type>
+                <Value>tabId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+          <GeneratesRoomFavorite>true</GeneratesRoomFavorite>
+        </Action>
         <Action>
           <Id>LaunchChannel</Id>
           <Name>Open</Name>

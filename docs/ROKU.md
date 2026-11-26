@@ -50,6 +50,13 @@ network (port 8060); nothing is installed on the Roku.
 Tests: `lua5.1 control4/test/test_roku.lua`. Package:
 `python3 control4/tools/build_c4z.py --driver roku_bridge`.
 
+### Room favorites
+
+Press and hold (or open the item menu) on a channel, a Recent title, a search
+result that one channel plays, or a *Where to watch* option, and choose **Add
+to Room Favorites**. The favorite stores the deep link itself, so it keeps
+working after the title drops off Recent or the search expires.
+
 ### Now Playing
 
 - The bar has Instant Replay, Rewind, Play or Pause (only the one that

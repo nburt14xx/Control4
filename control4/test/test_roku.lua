@@ -492,6 +492,60 @@ ReceivedFromProxy(5001, 'LaunchRecent', { NAVID = 'n1', SEQ = '303', ROOMID = '1
 check(Roku.lastLaunched.channelId ~= nil, 'recent launch remembers its channel')
 clear()
 
+------------------------------------------------------------------ room favorites
+clear()
+local function favorite(screen, id, seq)
+	ReceivedFromProxy(5001, 'FavoriteToRoom', { NAVID = 'n1', SEQ = seq, ROOMID = '12',
+		ARGS = '<params><param name="screenId">' .. screen .. '</param><param name="id">' .. id .. '</param></params>' })
+	return lastReply()
+end
+local function jump(favId)
+	ReceivedFromProxy(5001, 'jumpToFavorite', { ROOMID = '12', ARGS = '<params><param name="id">' .. favId .. '</param></params>' })
+end
+-- items offer the action
+ReceivedFromProxy(5001, 'GetChannels', { NAVID = 'n1', SEQ = '400' })
+if (#stub.urlRequests > 0) then respondTo('/query/apps', 200, APPS_XML) end
+find(lastReply().DATA, '<actions_list>LaunchChannel FavoriteToRoom</actions_list>', 'channels offer Add to Room Favorites')
+ReceivedFromProxy(5001, 'GetRecent', { NAVID = 'n1', SEQ = '401' })
+find(lastReply().DATA, 'LaunchRecent FavoriteToRoom RemoveRecent', 'recent titles offer Add to Room Favorites')
+-- a channel
+local r = favorite('ChannelsScreen', '837', '402')
+find(r.DATA, '<FavoriteResponse><Title>YouTube</Title>', 'channel favorite named after the channel')
+find(r.DATA, 'query/icon/837', 'channel favorite uses the channel icon')
+local favCh = r.DATA:match('<favoriteId>(.-)</favoriteId>')
+check(favCh ~= nil, 'channel favorite id')
+-- a search result with one channel (Max movie) and a where-to-watch option (Disney+)
+r = favorite('SearchResultsScreen', '2004', '403')
+find(r.DATA, '<ImageUrl', 'title favorite carries the poster')
+local favMovie = r.DATA:match('<favoriteId>(.-)</favoriteId>')
+r = favorite('WhereToWatchScreen', '2002|2', '404')
+local favShow = r.DATA:match('<favoriteId>(.-)</favoriteId>')
+check(favMovie ~= nil and favShow ~= nil, 'search favorites created')
+r = favorite('SearchResultsScreen', '2002', '405')
+check(r.ERROR ~= nil, 'a title on two channels is favorited from Where to watch, not the result')
+-- a recent title
+ReceivedFromProxy(5001, 'GetRecent', { NAVID = 'n1', SEQ = '406' })
+local rk = lastReply().DATA:match('<id>([^<]+)</id>')
+r = favorite('RecentScreen', rk, '407')
+local favRecent = r.DATA:match('<favoriteId>(.-)</favoriteId>')
+check(favRecent ~= nil, 'recent favorite created')
+-- favorites keep working after the search expires and Recent is cleared
+Finder.shows = {}
+ExecuteCommand('Clear Recent', {})
+clear()
+jump(favCh)
+find(respondTo('/launch/', 200, '').url, '/launch/837', 'channel favorite opens the channel')
+jump(favMovie)
+eq(respondTo('/launch/', 200, '').url, 'http://192.168.1.60:8060/launch/61322?contentId=e7dc7b3a-a494-4ef1-8107-f4308aa6bbf7&mediaType=movie', 'movie favorite deep-links after the search expired')
+eq(Roku.lastLaunched.channelId, '61322', 'favorite launch keeps its poster check working')
+jump(favShow)
+eq(respondTo('/launch/', 200, '').url, 'http://192.168.1.60:8060/launch/291097?contentId=081d1bd1-8a3c-4e0d-9b5f-1c2d3e4f5a6b&mediaType=series', 'Where-to-watch favorite opens that channel')
+jump(favRecent)
+check(pending('/launch/') == 1, 'recent favorite launches after Recent was cleared')
+clear()
+jump('nope')
+eq(pending('/launch/'), 0, 'unknown favorite does nothing')
+
 ------------------------------------------------------------------ installed file name
 stub.driverFileName = 'roku_bridge.c4z'
 eq(DriverAsset('icons/x.png'), 'controller://driver/roku_bridge/icons/x.png', 'asset path from the canonical file name')
