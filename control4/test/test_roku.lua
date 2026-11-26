@@ -453,6 +453,45 @@ respondTo('/query/media-player', 200, player('play'))
 eq(lastMedia().TITLE, 'Severance', 'back in the launched channel: its title returns')
 clear()
 
+------------------------------------------------------------------ poster after a real search launch
+-- the full path: search result -> launch -> channel starts -> leave the channel
+clear()
+Roku.activeApp = { name = 'Roku' }          -- on the home screen before the launch
+ReceivedFromProxy(5001, 'SearchPlay', { NAVID = 'n1', SEQ = '300', ROOMID = '12', ARGS = '<params><param name="id">2002|2</param></params>' })
+respondTo('/launch/', 200, '')
+eq(Roku.lastLaunched.channelId, '291097', 'search launch remembers its channel')
+local m = lastMedia()
+check(m.TITLE ~= 'Roku Home' and m.IMAGEURL ~= nil and m.IMAGEURL ~= C4:Base64Encode(ChannelIcon('291097')), 'poster shows straight away, not the home screen')
+check(Timer.nplaunch1 ~= nil and Timer.nplaunch2 ~= nil, 'quick re-checks scheduled after a launch')
+local poster = m.IMAGEURL
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app>Roku</app></active-app>')    -- channel still starting
+respondTo('/query/media-player', 200, '<player error="false" state="close"/>')
+eq(lastMedia().IMAGEURL, poster, 'poster kept while the channel is still starting')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="291097" type="appl" version="1.0">Disney Plus</app></active-app>')
+respondTo('/query/media-player', 200, player('play'))
+eq(lastMedia().IMAGEURL, poster, 'poster shows once the channel is playing (not the channel icon)')
+eq(Roku.lastLaunched.seen, true, 'channel seen on screen')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app>Roku</app></active-app>')
+respondTo('/query/media-player', 200, '<player error="false" state="close"/>')
+eq(lastMedia().TITLE, 'Roku Home', 'leaving the channel drops the poster')
+-- a launch the Roku never confirms gives up after the grace period
+ReceivedFromProxy(5001, 'SearchPlay', { NAVID = 'n1', SEQ = '301', ROOMID = '12', ARGS = '<params><param name="id">2002|2</param></params>' })
+respondTo('/launch/', 200, '')
+Roku.lastLaunched.launchedAt = os.time() - LAUNCH_GRACE_SECS - 1
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="12" type="appl" version="5.1">Netflix</app></active-app>')
+respondTo('/query/media-player', 200, player('play'))
+eq(lastMedia().TITLE, 'Netflix', 'an unconfirmed launch stops claiming the screen after the grace period')
+-- recently launched replays carry the channel too
+ReceivedFromProxy(5001, 'GetRecent', { NAVID = 'n1', SEQ = '302' })
+local rid = lastReply().DATA:match('<id>([^<]+)</id>')
+ReceivedFromProxy(5001, 'LaunchRecent', { NAVID = 'n1', SEQ = '303', ROOMID = '12', ARGS = '<params><param name="id">' .. tostring(rid) .. '</param></params>' })
+check(Roku.lastLaunched.channelId ~= nil, 'recent launch remembers its channel')
+clear()
+
 ------------------------------------------------------------------ installed file name
 stub.driverFileName = 'roku_bridge.c4z'
 eq(DriverAsset('icons/x.png'), 'controller://driver/roku_bridge/icons/x.png', 'asset path from the canonical file name')

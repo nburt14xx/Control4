@@ -12,7 +12,7 @@ network setting must be Enabled or Permissive.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.2.0"
+DRIVER_VERSION = "0.2.1"
 
 MSP_PROXY = 5001
 
@@ -490,6 +490,8 @@ function SelectInRoom(roomId)
 end
 
 function SetNowPlaying(display)
+	display.launchedAt = os.time()
+	display.seen = false        -- set once the Roku reports this channel on screen
 	Roku.lastLaunched = display
 	C4:SetVariable('LAST_LAUNCHED_TITLE', display.title or '')
 	C4:SetVariable('LAST_LAUNCHED_APP', display.app or '')
@@ -517,6 +519,13 @@ function LaunchChannel(channelId, contentId, mediaType, display, roomId)
 		end
 	end)
 	if (display) then SetNowPlaying(display) end
+	SchedulePoll('nplaunch1', 4000)
+	SchedulePoll('nplaunch2', 12000)
+end
+
+function SchedulePoll(name, ms)
+	KillTimer(name)
+	Timer[name] = C4:SetTimer(ms, function() Timer[name] = nil PollNowPlaying() end)
 end
 
 function AfterLaunchScreen()
@@ -579,7 +588,7 @@ end
 
 function LaunchRecentRecord(r, roomId)
 	LaunchChannel(r.channelId, r.contentId, r.mediaType,
-		{ title = r.title, subtitle = r.subtitle, app = r.channelName, art = r.poster, key = RecentKey(r) }, roomId)
+		{ title = r.title, subtitle = r.subtitle, app = r.channelName, art = r.poster, key = RecentKey(r), channelId = r.channelId }, roomId)
 	PushRecent(r)  -- move to the top
 end
 
@@ -607,8 +616,7 @@ function SmartPlayPause(want)
 		if (want == 'pause' and state == 'pause') then return end
 		KeyPress('Play')
 		-- the player needs a moment to change state; then update the bar
-		KillTimer('npquick')
-		Timer.npquick = C4:SetTimer(1500, function() Timer.npquick = nil PollNowPlaying() end)
+		SchedulePoll('npquick', 1500)
 	end)
 end
 
@@ -1001,7 +1009,7 @@ function LaunchShowOption(show, e, roomId)
 	local rec = { title = show.title or '', subtitle = e.appLabel, poster = poster or '', channelId = e.channelId,
 		channelName = e.appLabel, contentId = contentId or '', mediaType = mediaType, serviceId = e.serviceId }
 	LaunchChannel(e.channelId, contentId, mediaType,
-		{ title = rec.title, subtitle = rec.subtitle, app = rec.channelName, art = poster, key = RecentKey(rec) }, roomId)
+		{ title = rec.title, subtitle = rec.subtitle, app = rec.channelName, art = poster, key = RecentKey(rec), channelId = e.channelId }, roomId)
 	PushRecent(rec)
 end
 
@@ -1032,15 +1040,19 @@ end
 -- The launched title's poster, but only while its channel is still on screen.
 -- Once the Roku moves to another channel or the home screen, Now Playing shows
 -- that channel (name and icon) instead, so the thumbnail never shows something
--- that is no longer playing.
+-- that is no longer playing. A channel takes a few seconds to start, so the
+-- poster also stays up until the Roku first reports the new channel (or for
+-- LAUNCH_GRACE_SECS if it never does).
+LAUNCH_GRACE_SECS = 45
+
 function CurrentTitle()
 	local last = Roku.lastLaunched
 	local active = Roku.activeApp
-	if (not last or not active) then return last end
-	if (not active.id or not last.channelId or tostring(active.id) ~= tostring(last.channelId)) then
-		return nil
-	end
-	return last
+	if (not last) then return nil end
+	if (not last.channelId or not active) then return last end
+	if (active.id and tostring(active.id) == tostring(last.channelId)) then return last end
+	if (not last.seen and (os.time() - (last.launchedAt or 0)) < LAUNCH_GRACE_SECS) then return last end
+	return nil
 end
 
 function UpdateMediaInfo()
@@ -1161,6 +1173,8 @@ function PollNowPlaying()
 		local prev = Roku.activeApp and tostring(Roku.activeApp.id) .. '|' .. tostring(Roku.activeApp.name)
 		Roku.activeApp = { id = id, name = XMLDecode(name or 'Roku') }
 		C4:SetVariable('ACTIVE_APP', Roku.activeApp.name)
+		local last = Roku.lastLaunched
+		if (last and last.channelId and id and tostring(id) == tostring(last.channelId)) then last.seen = true end
 		if (prev ~= tostring(id) .. '|' .. Roku.activeApp.name) then
 			UpdateMediaInfo()
 			UpdateQueue()
