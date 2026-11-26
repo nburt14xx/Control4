@@ -19,6 +19,7 @@ Properties = {
 	['Search Country'] = 'us',
 	['Search Includes'] = 'Subscription and free',
 	['Show Titles Not On Roku'] = 'Yes',
+	['Deep Link Channels'] = 'All',   -- the deep-link tests below; the Roku search route is tested on its own
 	['Search Status'] = '',
 	['Debug Mode'] = 'Off',
 }
@@ -545,6 +546,128 @@ check(pending('/launch/') == 1, 'recent favorite launches after Recent was clear
 clear()
 jump('nope')
 eq(pending('/launch/'), 0, 'unknown favorite does nothing')
+
+------------------------------------------------------------------ deep-link policy and the Roku search route
+local function fire(name)
+	local t = Timer[name]
+	check(t ~= nil, 'timer ' .. name .. ' pending')
+	if (t) then t:Cancel() t.fn(t) end
+end
+eq(table.concat(TextKeys('Amélie 2'), ' '), 'Lit_A Lit_m Lit_%C3%A9 Lit_l Lit_i Lit_e Lit_%20 Lit_2', 'typing sends whole UTF-8 characters')
+Properties['Deep Link Channels'] = nil
+check(DeepLinks('hulu', 'Hulu') and DeepLinks('netflix', 'Netflix'), 'Hulu and Netflix deep-link by default')
+check(not DeepLinks('hbo', 'HBO Max', 'Max') and not DeepLinks('apple', 'Apple TV') and not DeepLinks('prime', 'Prime Video') and not DeepLinks('paramount', 'Paramount+'),
+	'Max, Apple TV, Prime Video and Paramount+ go through Roku search by default')
+Properties['Deep Link Channels'] = 'hulu, HBO Max ,Paramount+, prime video'
+check(DeepLinks('hbo', 'Max') and DeepLinks('paramount', 'Paramount Plus') and DeepLinks('prime', 'Amazon Prime Video'), 'names match loosely (aliases, +, spaces, case)')
+check(not DeepLinks('netflix', 'Netflix'), 'a channel left off the list uses Roku search')
+Properties['Deep Link Channels'] = 'All'
+check(DeepLinks('zzz', 'Anything'), 'All deep-links every channel')
+
+Properties['Deep Link Channels'] = 'Hulu, Netflix'
+RememberShows(JSON.decode(SEARCH_JSON))   -- the favorites test let the search expire
+clear()
+ReceivedFromProxy(5001, 'SearchPick', { NAVID = 'nS', SEQ = '500', ROOMID = '12', ARGS = '<params><param name="id">2004</param></params>' })
+eq(pending('/launch/'), 0, 'Max title is not deep-linked')
+eq(lastReply().DATA, '<NextScreen>#nowplaying</NextScreen>', 'goes to Now Playing to pick the result')
+eq(DashMode['nS'], 'dpad', 'that navigator gets the D-pad bar')
+local dsh
+for i = #stub.proxyMessages, 1, -1 do local m = stub.proxyMessages[i] if (m.params.NAME == 'DashboardChanged') then dsh = m.params break end end
+check(dsh and dsh.NAVID == 'nS' and dsh.EVTARGS:find('DpadOff', 1, true) ~= nil, 'D-pad bar sent to that navigator')
+eq(Roku.lastLaunched.title, 'Dune', 'Now Playing shows the title being found')
+eq(Roku.lastLaunched.channelId, '61322', 'poster follows the Max channel once it opens')
+check(respondTo('/keypress/Home', 200, '') ~= nil, 'Roku search starts from Home')
+fire('rokusearch')
+check(respondTo('/keypress/Search', 200, '') ~= nil, 'then opens Roku search')
+fire('rokusearch')
+local typed = {}
+while (pending('/keypress/') > 0) do
+	local r = respondTo('/keypress/', 200, '')
+	table.insert(typed, (r.url:match('/keypress/(.+)$')))
+end
+eq(#typed, 24, '20 clears then 4 letters')
+eq(typed[1], 'Backspace', 'clears the search box first')
+eq(table.concat(typed, ' ', 21), 'Lit_D Lit_u Lit_n Lit_e', 'then types the title')
+local top = RecentList()[1]
+eq(top.title, 'Dune', 'found title goes to Recent')
+clear()
+ReceivedFromProxy(5001, 'LaunchRecent', { NAVID = 'nS', SEQ = '501', ROOMID = '12', ARGS = '<params><param name="id">' .. RecentKey(top) .. '</param></params>' })
+check(pending('/keypress/Home') == 1 and pending('/launch/') == 0, 'replaying it from Recent searches again')
+-- Where to watch says which route each channel takes
+ReceivedFromProxy(5001, 'GetWhereToWatch', { NAVID = 'nS', SEQ = '502', ARGS = '<params><param name="id">2002</param></params>' })
+local w2w = lastReply().DATA
+check(w2w:find('<title>Hulu</title><subtitle>[^<]*via Roku search') == nil, 'Hulu opens directly')
+check(w2w:find('<title>Disney Plus</title><subtitle>[^<]*opens via Roku search</subtitle>') ~= nil, 'Disney+ marked as Roku search')
+-- every result list ends with a plain Roku search
+local rl = BuildSearchResultsList('twin peaks', {}, nil)
+find(rl, '<id>q:twin peaks</id><title>Search the Roku for &quot;twin peaks&quot;</title>', 'result list ends with Search the Roku')
+clear()
+ReceivedFromProxy(5001, 'SearchOnRoku', { NAVID = 'nS', SEQ = '503', ROOMID = '12', ARGS = '<params><param name="id">q:twin peaks</param></params>' })
+check(pending('/keypress/Home') == 1, 'Search the Roku starts the Roku search')
+eq(lastReply().DATA, '<NextScreen>#nowplaying</NextScreen>', 'and shows the D-pad bar')
+clear()
+
+------------------------------------------------------------------ Paramount+: episodes when a series link has no id
+Properties['Deep Link Channels'] = 'Hulu, Netflix, Paramount+'
+Roku.appsById['31440'] = { id = '31440', name = 'Paramount Plus' }
+table.insert(Roku.apps, Roku.appsById['31440'])
+Roku.appsAt = os.time()
+local PP = svc('paramount', 'Paramount+')
+RememberShows({ JSON.decode(show('2008', 'series', 'Twin Peaks', 'firstAirYear', '{"us":[' ..
+	opt(PP, 'subscription', 'https://www.paramountplus.com/shows/twin-peaks/', '') .. ']}')) })
+local idv, known = RokuContentId('paramount', 'https://www.paramountplus.com/movies/video/Y8sKvb2bIoeX4XZbsfjadF4GhNPwcjTQ/')
+check(idv == 'Y8sKvb2bIoeX4XZbsfjadF4GhNPwcjTQ' and known, 'Paramount+ movie link carries its id')
+idv, known = RokuContentId('paramount', 'https://www.paramountplus.com/shows/twin-peaks/')
+check(idv == 'twin-peaks' and not known, 'Paramount+ series link is only a name')
+ReceivedFromProxy(5001, 'SearchPick', { NAVID = 'nE', SEQ = '600', ROOMID = '12', ARGS = '<params><param name="id">2008</param></params>' })
+eq(lastReply().DATA, '<NextScreen>EpisodesScreen</NextScreen>', 'Paramount+ series opens the episode list')
+eq(pending('/launch/'), 0, 'nothing launched yet')
+ReceivedFromProxy(5001, 'GetEpisodes', { NAVID = 'nE', SEQ = '601', ARGS = '<params><param name="id">2008</param></params>' })
+eq(stub.urlRequests[#stub.urlRequests].url, 'https://api.movieofthenight.com/v4/shows/2008?country=us&series_granularity=episode&output_language=en', 'episodes requested for the country')
+local EPS = '{"itemType":"show","showType":"series","id":"2008","title":"Twin Peaks","seasons":[' ..
+	'{"itemType":"season","title":"Season 1","episodes":[' ..
+		'{"itemType":"episode","title":"Pilot","airYear":1990,"streamingOptions":{"us":[' .. opt(PP, 'subscription', 'https://www.paramountplus.com/shows/video/AAA111/', '') .. ']}},' ..
+		'{"itemType":"episode","title":"Traces to Nowhere","airYear":1990,"streamingOptions":{"us":[' .. opt(PP, 'subscription', 'https://www.paramountplus.com/shows/video/BBB222/', '') .. ']}}]},' ..
+	'{"itemType":"season","title":"Season 2","episodes":[' ..
+		'{"itemType":"episode","title":"May the Giant Be with You","airYear":1990,"streamingOptions":{"us":[' .. opt(PP, 'subscription', 'https://www.paramountplus.com/shows/video/CCC333/', '') .. ']}},' ..
+		'{"itemType":"episode","title":"Elsewhere Only","airYear":1990,"streamingOptions":{"us":[' .. opt(svc('hulu', 'Hulu'), 'subscription', 'https://www.hulu.com/watch/x', '') .. ']}}]}' ..
+	']}'
+respondTo('movieofthenight', 200, EPS)
+local el = lastReply().DATA
+find(el, '<title>Twin Peaks on Paramount Plus</title><isHeader>true</isHeader>', 'episode list names the show and channel')
+find(el, '<id>2008|1|find</id><title>Search the Roku for &quot;Twin Peaks&quot;</title>', 'Roku search offered as a way out')
+find(el, '<title>Season 1</title><isHeader>true</isHeader>', 'season headings')
+find(el, '<id>2008|1|2</id><title>2. Traces to Nowhere</title>', 'episodes numbered within the season')
+find(el, '<id>2008|1|3</id><title>1. May the Giant Be with You</title>', 'season 2 starts again at 1')
+check(el:find('Elsewhere Only', 1, true) == nil, 'episodes not on this channel are left out')
+find(el, '<actions_list>PlayEpisode FavoriteToRoom</actions_list>', 'episodes can be favorited')
+ReceivedFromProxy(5001, 'PlayEpisode', { NAVID = 'nE', SEQ = '602', ROOMID = '12', ARGS = '<params><param name="id">2008|1|2</param></params>' })
+eq(respondTo('/launch/', 200, '').url, 'http://192.168.1.60:8060/launch/31440?contentId=BBB222&mediaType=episode', 'episode deep link uses the episode id')
+eq(Roku.lastLaunched.subtitle, 'S1 E2' .. DOT .. 'Traces to Nowhere', 'Now Playing names the episode')
+eq(Roku.lastLaunched.art, 'https://cdn.example/2008/240.jpg', 'with the show poster')
+ReceivedFromProxy(5001, 'PlayEpisode', { NAVID = 'nE', SEQ = '603', ROOMID = '12', ARGS = '<params><param name="id">2008|1|1</param></params>' })
+respondTo('/launch/', 200, '')
+local peaks = 0
+for _, r in ipairs(RecentList()) do if (r.title == 'Twin Peaks') then peaks = peaks + 1 end end
+eq(peaks, 1, 'one Recent entry per show, holding the latest episode')
+eq(RecentList()[1].subtitle, 'S1 E1' .. DOT .. 'Pilot', 'Recent keeps the latest episode')
+local fr = favorite('EpisodesScreen', '2008|1|3', '604')
+find(fr.DATA, '<Title>Twin Peaks S2 E1</Title>', 'episode favorite named with its number')
+clear()
+jump(fr.DATA:match('<favoriteId>(.-)</favoriteId>'))
+find(respondTo('/launch/', 200, '').url, 'contentId=CCC333&mediaType=episode', 'episode favorite plays that episode')
+ReceivedFromProxy(5001, 'GetEpisodes', { NAVID = 'nE', SEQ = '605', ARGS = '<params><param name="id">2008</param></params>' })
+eq(pending('movieofthenight'), 0, 'episode list cached')
+ReceivedFromProxy(5001, 'PlayEpisode', { NAVID = 'nE', SEQ = '606', ROOMID = '12', ARGS = '<params><param name="id">2008|1|find</param></params>' })
+check(pending('/keypress/Home') == 1 and pending('/launch/') == 0, 'the way out searches the Roku')
+-- off the deep-link list, a Paramount+ series goes straight to Roku search
+Properties['Deep Link Channels'] = 'Hulu, Netflix'
+clear()
+ReceivedFromProxy(5001, 'SearchPick', { NAVID = 'nE', SEQ = '607', ROOMID = '12', ARGS = '<params><param name="id">2008</param></params>' })
+eq(lastReply().DATA, '<NextScreen>#nowplaying</NextScreen>', 'Paramount+ via Roku search skips the episode list')
+check(pending('/keypress/Home') == 1, 'and searches the Roku')
+Properties['Deep Link Channels'] = 'All'
+clear()
 
 ------------------------------------------------------------------ installed file name
 stub.driverFileName = 'roku_bridge.c4z'

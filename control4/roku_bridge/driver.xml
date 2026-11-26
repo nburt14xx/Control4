@@ -7,7 +7,7 @@
   <model>Roku players and TVs - Search and Control</model>
   <created>11/19/2026 12:00 AM</created>
   <modified>11/19/2026 12:00 AM</modified>
-  <version>4</version>
+  <version>5</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -146,6 +146,13 @@
         <default>Yes</default>
         <readonly>false</readonly>
         <tooltip>Also list matches on channels that are not installed, with the option to add the channel.</tooltip>
+      </property>
+      <property>
+        <name>Deep Link Channels</name>
+        <type>STRING</type>
+        <default>Hulu, Netflix</default>
+        <readonly>false</readonly>
+        <tooltip>Channels that open a title directly, comma separated, or All. Titles on other channels are typed into the Roku's own search and picked on the TV.</tooltip>
       </property>
       <property>
         <name>Search Status</name>
@@ -860,6 +867,47 @@
           </List>
         </Screen>
         <Screen xsi:type="ListScreenType">
+          <Id>EpisodesScreen</Id>
+          <DataCommand>
+            <Name>GetEpisodes</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </DataCommand>
+          <RequiresRefresh>true</RequiresRefresh>
+          <PaginationStyle>NONE</PaginationStyle>
+          <List>
+            <ItemDefaultActionProperty>default_action</ItemDefaultActionProperty>
+            <ItemActionIdsProperty>actions_list</ItemActionIdsProperty>
+            <TitleProperty>title</TitleProperty>
+            <SubTitleProperty>subtitle</SubTitleProperty>
+            <ImageProperty>image_list</ImageProperty>
+            <LengthProperty>duration</LengthProperty>
+            <IsLink>
+              <Property>isLink</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsLink>
+            <IsHeader>
+              <Property>isHeader</Property>
+              <ValidValues>
+                <Value>true</Value>
+              </ValidValues>
+            </IsHeader>
+          </List>
+        </Screen>
+        <Screen xsi:type="ListScreenType">
           <Id>RemoteScreen</Id>
           <DataCommand>
             <Name>GetRemote</Name>
@@ -1048,6 +1096,46 @@
           <Name>Play</Name>
           <Command>
             <Name>SearchPlay</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>PlayEpisode</Id>
+          <Name>Play</Name>
+          <Command>
+            <Name>PlayEpisode</Name>
+            <Type>PROTOCOL</Type>
+            <Params>
+              <Param>
+                <Name>screenId</Name>
+                <Type>SYSTEM</Type>
+                <Value>screenId</Value>
+              </Param>
+              <Param>
+                <Name>id</Name>
+                <Type>FIRST_SELECTED</Type>
+                <Value>id</Value>
+              </Param>
+            </Params>
+          </Command>
+        </Action>
+        <Action>
+          <Id>SearchOnRoku</Id>
+          <Name>Search the Roku</Name>
+          <Command>
+            <Name>SearchOnRoku</Name>
             <Type>PROTOCOL</Type>
             <Params>
               <Param>

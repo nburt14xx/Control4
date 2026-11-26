@@ -12,7 +12,7 @@ network setting must be Enabled or Permissive.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.3.0"
+DRIVER_VERSION = "0.4.0"
 
 MSP_PROXY = 5001
 
@@ -545,6 +545,8 @@ function RecentList()
 end
 
 function RecentKey(rec)
+	-- episodes of one show share an entry: the latest one replaces the last
+	if (rec.group) then return tostring(rec.channelId) .. '|' .. rec.group end
 	return tostring(rec.channelId) .. '|' .. tostring(rec.contentId)
 end
 
@@ -586,11 +588,21 @@ function BuildRecentList()
 	return table.concat(x)
 end
 
+-- Plays a title record (search result, Recent entry, favorite or episode).
+-- Returns 'search' when it went through Roku search instead of a deep link.
 function LaunchRecentRecord(r, roomId)
-	local contentId = (r.contentId and r.contentId ~= '') and r.contentId or nil
-	LaunchChannel(r.channelId, contentId, r.mediaType,
-		{ title = r.title, subtitle = r.subtitle, app = r.channelName, art = r.poster, key = RecentKey(r), channelId = r.channelId }, roomId)
+	local display = { title = r.title, subtitle = r.subtitle, app = r.channelName, art = r.poster,
+		key = RecentKey(r), channelId = r.channelId }
+	local how = 'deeplink'
+	if (DeepLinks(r.serviceId, r.channelName)) then
+		local contentId = (r.contentId and r.contentId ~= '') and r.contentId or nil
+		LaunchChannel(r.channelId, contentId, r.mediaType, display, roomId)
+	else
+		FindOnRoku(r.title, display, roomId)
+		how = 'search'
+	end
 	PushRecent(r)  -- move to the top
+	return how
 end
 
 -------------------------------------------------------------------------------
@@ -637,12 +649,30 @@ function HandleKeyCommand(strCommand)
 end
 
 -- Types text into whatever field is focused on the Roku, one key at a time.
-function SendText(text, i)
+-- One Lit_ key per character (UTF-8 aware, so "é" is one key).
+function TextKeys(text)
+	local keys = {}
+	for ch in tostring(text or ''):gmatch('[%z\1-\127\194-\244][\128-\191]*') do
+		table.insert(keys, 'Lit_' .. URLEncode(ch))
+	end
+	return keys
+end
+
+-- Presses keys one after another, each once the Roku has taken the last.
+function SendKeySequence(keys, done, i)
 	i = i or 1
-	if (i > #text) then return end
-	Ecp('POST', '/keypress/Lit_' .. URLEncode(text:sub(i, i)), function(err)
-		if (not err) then SendText(text, i + 1) end
+	if (i > #keys) then
+		if (done) then done() end
+		return
+	end
+	Ecp('POST', '/keypress/' .. keys[i], function(err)
+		if (not err) then SendKeySequence(keys, done, i + 1) end
 	end)
+end
+
+-- Types text into whatever field is focused on the Roku.
+function SendText(text)
+	SendKeySequence(TextKeys(text))
 end
 
 REMOTE_KEYS = {
@@ -683,6 +713,9 @@ SERVICE_ALIASES = {
 }
 
 Finder = Finder or { cache = {}, cacheOrder = {}, shows = {}, showCount = 0, lastShow = {} }
+Finder.episodeCache = Finder.episodeCache or {}     -- [showId] = { at, show } with seasons
+Finder.episodeLists = Finder.episodeLists or {}     -- ["show|option"] = episodes listed on screen
+Finder.episodeTarget = Finder.episodeTarget or {}   -- [navId] = "show|option" being browsed
 
 function NormName(s)
 	s = tostring(s or ''):lower():gsub('%+', ''):gsub('[^%w]', '')
@@ -944,7 +977,7 @@ function ShowItemXml(show, playable, installable, other)
 	end
 	if (#playable + #installable > 0) then
 		table.insert(x, '<default_action>SearchPick</default_action>')
-		if (#playable ~= 1) then
+		if (#playable ~= 1 or NeedsEpisodePick(show, playable[1])) then
 			table.insert(x, '<isLink>true</isLink>')
 		else
 			-- one channel plays it: it can go straight to the room's favorites
@@ -978,6 +1011,11 @@ function BuildSearchResultsList(query, shows, notice)
 		table.insert(x, '<item>' .. XMLTag('title', 'No matches for "' .. query .. '"') ..
 			XMLTag('subtitle', 'Searched what streams in ' .. SearchCountry():upper()) .. '</item>')
 	end
+	if (query ~= '') then
+		table.insert(x, '<item>' .. XMLTag('id', 'q:' .. query) .. XMLTag('title', 'Search the Roku for "' .. query .. '"') ..
+			XMLTag('subtitle', 'Types it into Roku search; pick the result on the TV') ..
+			'<default_action>SearchOnRoku</default_action></item>')
+	end
 	table.insert(x, '</List>')
 	return table.concat(x)
 end
@@ -995,16 +1033,20 @@ CONTENT_ID_RULES = {
 	apple = { '(umc%.[%w%.]+)' },
 	crunchyroll = { '/series/(%w+)', '/watch/(%w+)' },
 	tubi = { '/movies/(%d+)', '/series/(%d+)', '/tv%-shows/(%d+)', '/video/(%d+)' },
+	-- movies and episodes only; a series link is just a name the channel ignores
+	paramount = { '/video/([%w_%-]+)' },
 }
 
+-- Returns the channel's content id for a service's web link, and whether it
+-- came from a known pattern (true) or is only a guess (false).
 function RokuContentId(serviceId, url)
 	url = tostring(url or ''):gsub('[?#].*$', ''):gsub('/+$', '')
 	for _, pat in ipairs(CONTENT_ID_RULES[serviceId] or {}) do
 		local id = url:match(pat)
-		if (id) then return id end
+		if (id) then return id, true end
 	end
 	-- fallback: the last path segment
-	return url:match('([^/]+)$')
+	return url:match('([^/]+)$'), false
 end
 
 -- The record a search result launches with (also what Recent and favorites keep).
@@ -1017,7 +1059,7 @@ function ShowRecord(show, e)
 end
 
 function LaunchShowOption(show, e, roomId)
-	LaunchRecentRecord(ShowRecord(show, e), roomId)
+	return LaunchRecentRecord(ShowRecord(show, e), roomId)
 end
 
 function InstallChannel(e)
@@ -1247,8 +1289,7 @@ function RFP.LaunchRecent(tParams, args, idBinding)
 		DataReceivedError(idBinding, tParams.NAVID, tParams.SEQ, 'That entry is no longer in the list')
 		return
 	end
-	LaunchRecentRecord(r, tParams.ROOMID)
-	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen())
+	ReplyAfterLaunch(idBinding, tParams, LaunchRecentRecord(r, tParams.ROOMID))
 end
 
 function RFP.RemoveRecent(tParams, args, idBinding)
@@ -1334,9 +1375,13 @@ function RFP.SearchPick(tParams, args, idBinding)
 		return
 	end
 	Finder.lastShow[tostring(navId)] = id
+	if (#playable == 1 and NeedsEpisodePick(show, playable[1])) then
+		Finder.episodeTarget[tostring(navId)] = id .. '|1'
+		DataReceived(idBinding, navId, seq, '<NextScreen>EpisodesScreen</NextScreen>')
+		return
+	end
 	if (#playable == 1) then
-		LaunchShowOption(show, playable[1], tParams.ROOMID)
-		DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+		ReplyAfterLaunch(idBinding, tParams, LaunchShowOption(show, playable[1], tParams.ROOMID))
 		return
 	end
 	DataReceived(idBinding, navId, seq, '<NextScreen>WhereToWatchScreen</NextScreen>')
@@ -1355,9 +1400,12 @@ function RFP.GetWhereToWatch(tParams, args, idBinding)
 	local x = { '<List>', HeaderXml(show.title or '') }
 	for i, e in ipairs(playable) do
 		table.insert(x, '<item>' .. XMLTag('id', id .. '|' .. i) .. XMLTag('title', tostring(e.appLabel)) ..
-			XMLTag('subtitle', OptionDescription(e.opt)) ..
+			XMLTag('subtitle', OptionDescription(e.opt) ..
+				(DeepLinks(e.serviceId, e.serviceName, e.appLabel) and '' or ' \194\183 opens via Roku search')) ..
 			'<image_list width="290" height="218">' .. XMLEncode(ChannelIcon(e.channelId)) .. '</image_list>' ..
-			'<default_action>SearchPlay</default_action><actions_list>SearchPlay FavoriteToRoom</actions_list></item>')
+			'<default_action>SearchPlay</default_action>' ..
+			(NeedsEpisodePick(show, e) and '<isLink>true</isLink>' or '<actions_list>SearchPlay FavoriteToRoom</actions_list>') ..
+			'</item>')
 	end
 	if (#installable > 0) then
 		table.insert(x, HeaderXml('Not installed'))
@@ -1391,8 +1439,225 @@ function RFP.SearchPlay(tParams, args, idBinding)
 		DataReceived(idBinding, navId, seq, '')
 		return
 	end
-	LaunchShowOption(show, e, tParams.ROOMID)
-	DataReceived(idBinding, navId, seq, AfterLaunchScreen())
+	if (NeedsEpisodePick(show, e)) then
+		Finder.episodeTarget[tostring(navId)] = showId .. '|' .. idx
+		DataReceived(idBinding, navId, seq, '<NextScreen>EpisodesScreen</NextScreen>')
+		return
+	end
+	ReplyAfterLaunch(idBinding, tParams, LaunchShowOption(show, e, tParams.ROOMID))
+end
+
+-------------------------------------------------------------------------------
+-- Episodes. Some channels (Paramount+) only deep-link to a movie or an
+-- episode: the web link for a series is just a name the Roku channel ignores,
+-- so it would open on its home screen. For those, tapping the series lists its
+-- episodes (from the same search service) and the chosen one plays directly.
+-------------------------------------------------------------------------------
+
+EPISODE_CACHE_SECS = 1800
+
+function NeedsEpisodePick(show, e)
+	if (not show or show.showType ~= 'series' or not e or not e.opt) then return false end
+	if (not DeepLinks(e.serviceId, e.serviceName, e.appLabel)) then return false end
+	local _, known = RokuContentId(e.serviceId, e.opt.link)
+	return not known
+end
+
+function FetchEpisodes(showId, callback)
+	local hit = Finder.episodeCache[showId]
+	if (hit and (os.time() - hit.at) < EPISODE_CACHE_SECS) then
+		callback(nil, hit.show)
+		return
+	end
+	SearchApiGet('/shows/' .. URLEncode(showId) .. '?country=' .. SearchCountry() ..
+		'&series_granularity=episode&output_language=en', function(err, data)
+		if (err) then callback(err) return end
+		if (type(data) ~= 'table') then callback('unexpected reply from search service') return end
+		local n = 0
+		for _ in pairs(Finder.episodeCache) do n = n + 1 end
+		if (n >= 20) then Finder.episodeCache = {} end
+		Finder.episodeCache[showId] = { at = os.time(), show = data }
+		callback(nil, data)
+	end)
+end
+
+-- Episodes of `full` (the show with its seasons) that option e's service streams.
+function EpisodeEntries(full, e)
+	local out = {}
+	local country = SearchCountry()
+	local seasons = (type(full) == 'table' and type(full.seasons) == 'table') and full.seasons or {}
+	for si, season in ipairs(seasons) do
+		local episodes = (type(season.episodes) == 'table') and season.episodes or {}
+		for k, ep in ipairs(episodes) do
+			local opts = (type(ep.streamingOptions) == 'table' and ep.streamingOptions[country]) or {}
+			for _, o in ipairs(opts) do
+				if (type(o.service) == 'table' and o.service.id == e.serviceId and SearchTypeAllowed(o.type)) then
+					local cid = RokuContentId(e.serviceId, o.link)
+					if (cid and cid ~= '') then
+						table.insert(out, { season = si, seasonTitle = season.title or ('Season ' .. si), number = k,
+							title = ep.title or ('Episode ' .. k), year = ep.airYear, contentId = cid })
+					end
+					break
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- "<show>|<option>|<n>" -> the record that plays (and is kept in Recent).
+function EpisodeRecord(itemId)
+	local showId, idx, n = tostring(itemId or ''):match('^(.-)|(%d+)|(%d+)$')
+	local show = showId and Finder.shows[showId]
+	local e = show and ShowOptions(show)[tonumber(idx)]
+	local list = showId and Finder.episodeLists[showId .. '|' .. idx]
+	local ep = list and list[tonumber(n)]
+	if (not e or not ep) then return nil end
+	return { title = show.title or '', subtitle = string.format('S%d E%d \194\183 %s', ep.season, ep.number, ep.title),
+		poster = ShowPoster(show) or '', channelId = e.channelId, channelName = e.appLabel, contentId = ep.contentId,
+		mediaType = 'episode', serviceId = e.serviceId, group = 'show:' .. showId }
+end
+
+function RFP.GetEpisodes(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local target = tostring(args.id or '')
+	local showId, idx = target:match('^(.-)|(%d+)$')
+	if (not showId) then showId, idx = target, '1' end
+	if (not Finder.shows[showId]) then
+		showId, idx = tostring(Finder.episodeTarget[tostring(navId)] or ''):match('^(.-)|(%d+)$')
+	end
+	local show = showId and Finder.shows[showId]
+	local e = show and ShowOptions(show)[tonumber(idx)]
+	if (not e) then
+		DataReceivedError(idBinding, navId, seq, 'That result has expired; search again')
+		return
+	end
+	local key = showId .. '|' .. idx
+	FetchEpisodes(showId, function(err, full)
+		local entries = err and {} or EpisodeEntries(full, e)
+		Finder.episodeLists[key] = entries
+		local x = { '<List>', HeaderXml(tostring(show.title or '') .. ' on ' .. tostring(e.appLabel)) }
+		table.insert(x, '<item>' .. XMLTag('id', key .. '|find') ..
+			XMLTag('title', 'Search the Roku for "' .. tostring(show.title or '') .. '"') ..
+			XMLTag('subtitle', 'If an episode will not open, pick the show from Roku search') ..
+			'<default_action>PlayEpisode</default_action></item>')
+		if (err) then
+			table.insert(x, HeaderXml('Episode list unavailable: ' .. SearchErrorText(err)))
+		elseif (#entries == 0) then
+			table.insert(x, HeaderXml('No episode list for ' .. tostring(e.appLabel)))
+		end
+		local season = nil
+		for n, ep in ipairs(entries) do
+			if (ep.season ~= season) then
+				season = ep.season
+				table.insert(x, HeaderXml(ep.seasonTitle))
+			end
+			table.insert(x, '<item>' .. XMLTag('id', key .. '|' .. n) .. XMLTag('title', ep.number .. '. ' .. ep.title) ..
+				XMLTag('subtitle', ep.year and tostring(ep.year) or '') ..
+				'<default_action>PlayEpisode</default_action><actions_list>PlayEpisode FavoriteToRoom</actions_list></item>')
+		end
+		table.insert(x, '</List>')
+		DataReceived(idBinding, navId, seq, table.concat(x))
+	end)
+end
+
+function RFP.PlayEpisode(tParams, args, idBinding)
+	local navId, seq = tParams.NAVID, tParams.SEQ
+	local itemId = tostring(args.id or '')
+	local showId, idx = itemId:match('^(.-)|(%d+)|find$')
+	if (showId) then
+		local show = Finder.shows[showId]
+		local e = show and ShowOptions(show)[tonumber(idx)]
+		if (not e) then
+			DataReceivedError(idBinding, navId, seq, 'That result has expired; search again')
+			return
+		end
+		FindOnRoku(show.title or '', { title = show.title or '', subtitle = e.appLabel, app = e.appLabel,
+			art = ShowPoster(show), channelId = e.channelId }, tParams.ROOMID)
+		ReplyAfterLaunch(idBinding, tParams, 'search')
+		return
+	end
+	local r = EpisodeRecord(itemId)
+	if (not r) then
+		DataReceivedError(idBinding, navId, seq, 'That episode list has expired; open it again')
+		return
+	end
+	ReplyAfterLaunch(idBinding, tParams, LaunchRecentRecord(r, tParams.ROOMID))
+end
+
+-------------------------------------------------------------------------------
+-- Roku search route. Each channel's deep-link ids are private; the ids in the
+-- streaming services' web links only work for some (Hulu, Netflix). For the
+-- rest the title is typed into the Roku's own search, which knows every
+-- channel's real ids: the result is one press away, and this navigator's bar
+-- switches to the D-pad to pick it.
+-------------------------------------------------------------------------------
+
+-- Channels that open titles from a deep link. "All" keeps every channel on
+-- deep links; anything not listed goes through Roku search.
+function DeepLinks(serviceId, ...)
+	local list = Properties['Deep Link Channels']
+	if (list == nil) then list = 'Hulu, Netflix' end
+	list = trim(list)
+	if (list:lower() == 'all') then return true end
+	local mine = {}
+	mine[NormName(serviceId)] = true
+	for _, name in ipairs({ ... }) do mine[NormName(name)] = true end
+	for _, a in ipairs(SERVICE_ALIASES[serviceId] or {}) do mine[a] = true end
+	mine[''] = nil
+	for entry in list:gmatch('[^,]+') do
+		if (mine[NormName(entry)]) then return true end
+	end
+	return false
+end
+
+-- Types text into the Roku's own search: Home, Search, clear the box, type.
+function RokuSearch(text)
+	KillTimer('rokusearch')
+	KeyPress('Home')
+	Timer.rokusearch = C4:SetTimer(1500, function()
+		KeyPress('Search')
+		Timer.rokusearch = C4:SetTimer(2500, function()
+			Timer.rokusearch = nil
+			local keys = {}
+			for _ = 1, 20 do table.insert(keys, 'Backspace') end
+			for _, k in ipairs(TextKeys(text)) do table.insert(keys, k) end
+			SendKeySequence(keys)
+		end)
+	end)
+end
+
+function FindOnRoku(text, display, roomId)
+	SelectInRoom(roomId)
+	print('Roku Bridge: searching the Roku for "' .. tostring(text) .. '"' ..
+		((display and display.app and display.app ~= '') and (' to open in ' .. display.app) or ''))
+	RokuSearch(text)
+	if (display) then SetNowPlaying(display) end
+	SchedulePoll('nplaunch1', 10000)
+	SchedulePoll('nplaunch2', 25000)
+end
+
+-- After handing off to Roku search, this navigator's bar shows the D-pad.
+function DpadFor(tParams)
+	if (not tParams.NAVID) then return end
+	DashMode[tostring(tParams.NAVID)] = 'dpad'
+	DashNavs[tostring(tParams.NAVID)] = tParams.ROOMID or DashNavs[tostring(tParams.NAVID)] or ''
+	SendDashboard(tParams.NAVID, tParams.ROOMID)
+end
+
+function ReplyAfterLaunch(idBinding, tParams, how)
+	if (how == 'search') then
+		DpadFor(tParams)
+		DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '<NextScreen>#nowplaying</NextScreen>')
+	else
+		DataReceived(idBinding, tParams.NAVID, tParams.SEQ, AfterLaunchScreen())
+	end
+end
+
+function RFP.SearchOnRoku(tParams, args, idBinding)
+	local q = tostring(args.id or ''):match('^q:(.*)$') or trim(PersistData.searchQuery)
+	if (q ~= '') then FindOnRoku(q, nil, tParams.ROOMID) end
+	ReplyAfterLaunch(idBinding, tParams, 'search')
 end
 
 -- Search tab (fallback for navigators that do not show the magnifier)
@@ -1435,6 +1700,11 @@ function FavoriteFor(screen, id)
 		if (not r) then return nil end
 		return { kind = 'title', record = r, title = r.title, art = r.poster }
 	end
+	if (screen == 'EpisodesScreen') then
+		local r = EpisodeRecord(id)
+		if (not r) then return nil end
+		return { kind = 'title', record = r, title = r.title .. ' ' .. r.subtitle:match('^(S%d+ E%d+)'), art = r.poster }
+	end
 	-- search results ("<show>") and where-to-watch options ("<show>|<n>")
 	local showId, idx = id:match('^(.-)|(%d+)$')
 	showId = showId or id
@@ -1442,7 +1712,7 @@ function FavoriteFor(screen, id)
 	if (not show) then return nil end
 	local playable = ShowOptions(show)
 	local e = playable[tonumber(idx) or 1]
-	if (not e or (not idx and #playable ~= 1)) then return nil end
+	if (not e or (not idx and #playable ~= 1) or NeedsEpisodePick(show, e)) then return nil end
 	local r = ShowRecord(show, e)
 	return { kind = 'title', record = r, title = r.title, art = r.poster }
 end
@@ -1469,8 +1739,8 @@ function RFP.jumpToFavorite(tParams, args, idBinding)
 		print('Roku Bridge: unknown favorite ' .. favId)
 	elseif (fav.kind == 'channel') then
 		LaunchChannel(fav.channelId, nil, nil, { title = fav.title, app = fav.title, art = fav.art, channelId = fav.channelId }, tParams.ROOMID)
-	else
-		LaunchRecentRecord(fav.record, tParams.ROOMID)
+	elseif (LaunchRecentRecord(fav.record, tParams.ROOMID) == 'search') then
+		DpadFor(tParams)
 	end
 	if (tParams.NAVID and tParams.SEQ) then DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '') end
 end

@@ -50,6 +50,23 @@ network (port 8060); nothing is installed on the Roku.
 Tests: `lua5.1 control4/test/test_roku.lua`. Package:
 `python3 control4/tools/build_c4z.py --driver roku_bridge`.
 
+### How a title opens
+
+Each Roku channel decides which ids it accepts in a deep link, and those ids
+are not published. The ids in the streaming services' web links work for
+Hulu and Netflix; Paramount+, Prime Video, HBO Max and Apple TV just open on
+their home screen. So titles on any channel not listed in **Deep Link
+Channels** are typed into the Roku's own search instead. Now Playing shows
+the poster, the bar switches to the D-pad, and pressing OK on the result opens
+it in the right channel. Roku search uses each channel's real ids.
+
+- *Deep Link Channels*: comma separated, default `Hulu, Netflix`, or `All`. To
+  try another channel, add it and launch a title. If the channel only opens
+  its home screen, take it off the list again.
+- A series on a listed channel whose web link carries no id (Paramount+)
+  shows its episodes instead; each one plays directly.
+- Every result list ends with *Search the Roku for "..."*.
+
 ### Room favorites
 
 Press and hold (or open the item menu) on a channel, a Recent title, a search
