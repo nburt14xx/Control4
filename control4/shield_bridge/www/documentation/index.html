@@ -22,6 +22,7 @@
   <li>Open it. Press <strong>Grant 'TV listings' permission</strong> and accept. Press <strong>Allow 'Display over other apps'</strong> and enable it. If a screen does not open on this device, run from a PC with adb connected to the Shield:
     <pre>adb shell pm grant dev.shieldbridge android.permission.READ_TV_LISTINGS
 adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
+  <li>Press <strong>Allow 'Notification access'</strong> and turn on <em>Shield Bridge: what's playing</em>, so Now Playing shows whatever is playing, even a show started with the Shield remote. (adb: <code>adb shell cmd notification allow_listener dev.shieldbridge/dev.shieldbridge.MediaListener</code>)</li>
   <li>Press <strong>Test: read Continue Watching</strong>. It should list what has recently been watched on the box.</li>
   <li>Note the address shown (for example <code>http://192.168.1.50:8765</code>). Give the Shield a DHCP reservation.</li>
 </ol>
@@ -48,7 +49,8 @@ adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow</pre></li>
   <li><em>Apps</em> tab opens any installed TV app.</li>
   <li><strong>Shield Bridge Remote</strong> appears as a second Watch device: the standard Control4 remote screen (D-pad, transport, menu, numbers). It feeds Shield Bridge internally, so it needs no connections. Set <em>After Launch</em> to <em>Switch to Remote</em> to land on it after starting a show. Control4 shows no artwork on this screen type; the poster stays on Shield Bridge's Now Playing.</li>
   <li>Remote and transport buttons, from the physical remote, the <em>Remote</em> tab or the Now Playing bar, are relayed to the Shield Control Device. <em>Home</em> works through the Shield Bridge app itself.</li>
-  <li><strong>Now Playing bar</strong>: OK, Play, Pause, Next, Menu and a <em>D-pad</em> button. D-pad swaps the bar to Back, Left, Up, OK, Down, Right, so you can move around the Shield's menus with the poster still on screen; the last button swaps back to playback. Each touch screen or phone keeps its own mode, and selecting the source or launching a show puts the bar back on playback.</li>
+  <li><strong>Now Playing</strong> shows what is actually playing on the Shield (title, artwork, progress), however it was started. Without Notification access, or for an app that reports nothing, it shows the last show launched from Control4. <em>Now Playing Refresh (s)</em> sets how often it checks while selected.</li>
+  <li><strong>Now Playing bar</strong>: OK, Play or Pause (whichever applies), Next, Menu and a <em>D-pad</em> button. D-pad swaps the bar to Back, Left, Up, OK, Down, Right, so you can move around the Shield's menus with the poster still on screen; the last button swaps back to playback. Each touch screen or phone keeps its own mode, and selecting the source or launching a show puts the bar back on playback.</li>
 </ul>
 
 <h2>Search</h2>

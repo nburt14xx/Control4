@@ -34,10 +34,20 @@ Two things to install: the **Shield Bridge** app on the NVIDIA Shield, and the
    adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow
    ```
 
-6. Press **Test: read Continue Watching**. It lists what has been watched on the
+6. Press **Allow 'Notification access'** and turn on *Shield Bridge: what's
+   playing*. This lets Control4's Now Playing show whatever is playing, even a
+   show started with the Shield remote. The app never reads notifications;
+   Android only shares other apps' "now playing" info with apps that have this
+   access. From a PC instead:
+
+   ```
+   adb shell cmd notification allow_listener dev.shieldbridge/dev.shieldbridge.MediaListener
+   ```
+
+7. Press **Test: read Continue Watching**. It lists what has been watched on the
    box. If it is empty, play something in Netflix for a minute, back out, and
    try again.
-7. Note the address on screen, e.g. `http://192.168.1.50:8765`, and give the
+8. Note the address on screen, e.g. `http://192.168.1.50:8765`, and give the
    Shield a DHCP reservation so it does not change.
 
 Check from a browser on the LAN: `http://192.168.1.50:8765/api/status` should
@@ -107,6 +117,11 @@ Behaviour worth knowing:
 - **Apps** tab opens any installed TV app.
 - The physical remote's arrows, OK, back and transport buttons work as usual:
   Shield Bridge relays them to the Shield Control Device.
+- **Now Playing** shows what is actually playing on the Shield, with its
+  artwork, a progress bar, and only the Play or Pause button that applies,
+  however the show was started. An app that reports nothing (or a Shield
+  without Notification access) shows the last show launched from Control4.
+  *Now Playing Refresh (s)* sets how often it checks while selected (default 5).
 - The **Remote** tab is an on-screen remote.
 - The **Now Playing bar** has OK, play, pause, next, menu and a **D-pad**
   button. D-pad swaps the bar to back, left, up, OK, down and right, so you can

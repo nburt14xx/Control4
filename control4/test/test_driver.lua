@@ -609,5 +609,144 @@ find(Properties['Driver File'], 'rename to shield_bridge.c4z', 'Driver File prop
 stub.driverFileName = nil
 eq(DriverAsset('icons/x.png'), 'controller://driver/shield_bridge/icons/x.png', 'asset path falls back to the canonical name')
 
+------------------------------------------------------------------ live Now Playing (media sessions)
+local function respondTo(pat, code, body)
+	for i, r in ipairs(stub.urlRequests) do
+		if (r.url:find(pat, 1, true)) then
+			table.remove(stub.urlRequests, i)
+			r.callback(1, body, code, {}, nil)
+			return r
+		end
+	end
+	return nil
+end
+local function lastMedia()
+	for i = #stub.proxyMessages, 1, -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'UPDATE_MEDIA_INFO') then return m.params, i end
+	end
+end
+local function countMedia()
+	local n = 0
+	for _, m in ipairs(stub.proxyMessages) do if (m.command == 'UPDATE_MEDIA_INFO') then n = n + 1 end end
+	return n
+end
+local function lastEvent(name)
+	for i = #stub.proxyMessages, 1, -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'SEND_EVENT' and m.params.NAME == name) then return m.params end
+	end
+end
+-- the bar sent to one navigator since message index `from`
+local function dashFor(navId, from)
+	for i = #stub.proxyMessages, (from or 1), -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged' and m.params.NAVID == navId) then return m.params.EVTARGS end
+	end
+end
+local NP_PLAYING = '{"ok":true,"active":true,"package":"com.netflix.ninja","app":"Netflix","state":"playing",' ..
+	'"title":"Hide and Seek","subtitle":"Severance","artist":"","album":"","durationMs":3300000,"positionMs":1200000,' ..
+	'"artKey":"ab12","art":"http://192.168.1.50:8765/api/nowplaying/art?v=ab12"}'
+drain()
+stub.urlRequests = {}
+KillTimer('np')
+Bridge.selected = {}
+Bridge.lastLaunched = { title = 'Severance', subtitle = 'S2 E4', app = 'Netflix', art = 'http://192.168.1.50:8765/api/art/101',
+	id = 101, package = 'com.netflix.ninja', launchedAt = os.time() - 600 }
+Properties['Now Playing Refresh (s)'] = '5'
+ReceivedFromProxy(5001, 'DEVICE_SELECTED', { ROOMID = '14' })
+check(Timer.np ~= nil, 'selecting the source starts the Now Playing check')
+check(respondTo('/api/nowplaying', 200, NP_PLAYING) ~= nil, 'asks the app what is playing straight away')
+local m = lastMedia()
+eq(m.TITLE, 'Hide and Seek', 'Now Playing shows the playing title')
+eq(m.ALBUM, 'Severance', 'and its show')
+eq(m.ARTIST, 'Netflix', 'and the app')
+eq(m.IMAGEURL, C4:Base64Encode('http://192.168.1.50:8765/api/nowplaying/art?v=ab12'), 'with the artwork of what is playing')
+eq(lastEvent('ProgressChanged').EVTARGS, '<length>3300</length><offset>1200</offset><label>20:00 / 55:00</label>', 'progress bar')
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navP', ROOMID = '14', SEQ = '700' })
+eq(lastEvent('DashboardChanged').EVTARGS, '<Items>Ok Pause SkipFwd Menu DpadOn</Items>', 'playing: only Pause shows')
+-- the same report again changes nothing
+local before = countMedia()
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, NP_PLAYING)
+eq(countMedia(), before, 'unchanged report sends no update')
+-- paused: the bar follows, per navigator
+local paused = NP_PLAYING:gsub('"state":"playing"', '"state":"paused"')
+local mark = #stub.proxyMessages
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, paused)
+eq(dashFor('navP', mark + 1), '<Items>Ok Play SkipFwd Menu DpadOn</Items>', 'paused: only Play shows, sent to that navigator')
+ReceivedFromProxy(5001, 'DpadMode', { NAVID = 'navP', ROOMID = '14', SEQ = '701' })
+mark = #stub.proxyMessages
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, NP_PLAYING)
+eq(dashFor('navP', mark + 1), '<Items>Back Left Up Ok Down Right DpadOff</Items>', 'a navigator in D-pad mode keeps its arrows when play state changes')
+ReceivedFromProxy(5001, 'PlaybackMode', { NAVID = 'navP', ROOMID = '14', SEQ = '702' })
+-- no artwork from the app: the launched poster for the same show, else the app icon
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, NP_PLAYING:gsub('"art":"[^"]*"', '"art":""'))
+eq(lastMedia().IMAGEURL, C4:Base64Encode('http://192.168.1.50:8765/api/art/101'), 'same show as the launch: its poster')
+local yt = '{"ok":true,"active":true,"package":"com.google.android.youtube.tv","app":"YouTube","state":"playing",' ..
+	'"title":"Cat video","subtitle":"","artist":"Cats Inc","album":"","durationMs":0,"positionMs":0,"artKey":"x","art":""}'
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, yt)
+m = lastMedia()
+eq(m.TITLE, 'Cat video', 'something started with the Shield remote shows too')
+eq(m.ALBUM, 'Cats Inc', 'artist fills the second line when there is no subtitle')
+eq(m.IMAGEURL, C4:Base64Encode('http://192.168.1.50:8765/api/icon/com.google.android.youtube.tv'), 'no artwork: the app icon')
+-- nothing playing, or no permission: back to the last launch
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, '{"ok":true,"active":false}')
+eq(lastMedia().TITLE, 'Severance', 'nothing playing: last launch')
+eq(Bridge.playState, nil, 'no play state when nothing plays')
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, NP_PLAYING:gsub('"state":"playing"', '"state":"stopped"'))
+eq(lastMedia().TITLE, 'Severance', 'a stopped session does not count')
+FetchNowPlaying()
+respondTo('/api/nowplaying', 403, '{"ok":false,"error":"notification access not granted; open the Shield Bridge app on the TV"}')
+eq(lastMedia().TITLE, 'Severance', 'no notification access: last launch')
+find(Bridge.nowPlayingNote or '', 'allow Notification access', 'says how to turn it on')
+FetchNowPlaying()
+respondTo('/api/nowplaying', 404, '{"ok":false,"error":"unknown path /api/nowplaying"}')
+find(Bridge.nowPlayingNote or '', 'update the Shield Bridge app', 'older app: says to update it')
+-- right after a launch, the previous app's lingering session does not override it
+ReceivedFromProxy(5001, 'LaunchItem', { NAVID = 'navP', SEQ = '703', ROOMID = '14', ARGS = '<params><param name="id">101</param></params>' })
+check(Timer.nplaunch1 ~= nil and Timer.nplaunch2 ~= nil, 'checks again soon after a launch')
+drain()
+Bridge.lastLaunched.package = 'com.netflix.ninja'
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, yt)
+eq(lastMedia().TITLE, 'Severance', 'old app still reporting right after a launch: launched title kept')
+Bridge.lastLaunched.launchedAt = os.time() - LAUNCH_SETTLE_SECS - 1
+FetchNowPlaying()
+respondTo('/api/nowplaying', 200, yt:gsub('Cat video', 'Dog video'))
+eq(lastMedia().TITLE, 'Dog video', 'after the settle time the live report wins')
+-- the Now Playing list leads with what is playing
+UpdateQueue('navP', '14')
+find(lastEvent('QueueChanged').EVTARGS, '<title>Dog video</title>', 'queue shows the live title first')
+-- play/pause presses get a quick re-check
+KillTimer('npquick')
+ReceivedFromProxy(5001, 'PAUSE', { NAVID = 'navP', ROOMID = '14' })
+check(Timer.npquick ~= nil, 'pause press re-checks soon')
+KillTimer('npquick')
+HandleRemoteProxy('PLAY', {})
+check(Timer.npquick ~= nil, 'remote screen play press re-checks soon')
+-- polling follows selection across both screens
+ReceivedFromProxy(5002, 'DEVICE_SELECTED', { ROOMID = '14' })
+ReceivedFromProxy(5001, 'DEVICE_DESELECTED', { ROOMID = '14' })
+check(Timer.np ~= nil, 'still checking while the remote screen is selected')
+ReceivedFromProxy(5002, 'DEVICE_DESELECTED', {})
+check(Timer.np == nil, 'stops when neither screen is selected')
+stub.urlRequests = {}
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navQ', SEQ = '704' })
+check(Timer.npview ~= nil, 'opening Now Playing while not selected checks once')
+KillTimer('npview')
+Properties['Now Playing Refresh (s)'] = '0'
+ReceivedFromProxy(5001, 'DEVICE_SELECTED', { ROOMID = '14' })
+check(Timer.np == nil, 'refresh 0: no repeating check')
+ReceivedFromProxy(5001, 'DEVICE_DESELECTED', { ROOMID = '14' })
+Properties['Now Playing Refresh (s)'] = '5'
+stub.urlRequests = {}
+
 print(string.format('%d passed, %d failed', passed, failed))
 if (failed > 0) then os.exit(1) end

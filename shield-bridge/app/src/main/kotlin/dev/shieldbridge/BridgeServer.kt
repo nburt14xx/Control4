@@ -27,6 +27,8 @@ import java.util.LinkedHashMap
  *   GET  /api/icon/{package}         PNG banner or icon for an app
  *   GET  /api/art/{id}               cached poster for a Watch Next row
  *   GET|POST /api/launch             id | intentUri | url | package
+ *   GET  /api/nowplaying             what is playing now (media sessions)
+ *   GET  /api/nowplaying/art         its artwork
  *   POST /api/wake                   best-effort screen wake
  *
  * If an API key is configured it must arrive as X-Api-Key header or ?key=.
@@ -40,7 +42,7 @@ class BridgeServer(private val ctx: Context, port: Int) : NanoHTTPD(port) {
     private val startedAt = System.currentTimeMillis()
 
     companion object {
-        const val VERSION = "0.1.0"
+        const val VERSION = "0.2.0"
         private const val JSON = "application/json; charset=utf-8"
     }
 
@@ -67,6 +69,8 @@ class BridgeServer(private val ctx: Context, port: Int) : NanoHTTPD(port) {
             uri.startsWith("/api/icon/") -> icon(uri.removePrefix("/api/icon/"))
             uri.startsWith("/api/art/") -> artFor(uri.removePrefix("/api/art/"))
             uri == "/api/launch" -> launch(session)
+            uri == "/api/nowplaying" -> nowPlaying(session)
+            uri == "/api/nowplaying/art" -> nowPlayingArt()
             uri == "/api/wake" -> wake()
             else -> json(Response.Status.NOT_FOUND, JSONObject().put("ok", false).put("error", "unknown path $uri"))
         }
@@ -132,6 +136,7 @@ class BridgeServer(private val ctx: Context, port: Int) : NanoHTTPD(port) {
         val perms = JSONObject()
             .put("readTvListings", WatchNextRepository.hasPermission(ctx))
             .put("displayOverOtherApps", Launcher.canLaunchFromBackground(ctx))
+            .put("notificationAccess", NowPlaying.hasAccess(ctx))
         return ok(
             JSONObject()
                 .put("app", "shield-bridge")
@@ -282,6 +287,59 @@ class BridgeServer(private val ctx: Context, port: Int) : NanoHTTPD(port) {
         }
         val obj = JSONObject().put("message", result.message).put("launched", result.launched)
         return if (result.ok) ok(obj) else json(Response.Status.BAD_REQUEST, obj.put("ok", false))
+    }
+
+    private fun nowPlaying(session: IHTTPSession): Response {
+        if (!NowPlaying.hasAccess(ctx)) {
+            return json(
+                Response.Status.FORBIDDEN,
+                JSONObject().put("ok", false)
+                    .put("error", "notification access not granted; open the Shield Bridge app on the TV")
+            )
+        }
+        val info = try {
+            NowPlaying.read(ctx)
+        } catch (e: SecurityException) {
+            return json(
+                Response.Status.FORBIDDEN,
+                JSONObject().put("ok", false).put("error", "media sessions not readable: ${e.message}")
+            )
+        }
+        val obj = JSONObject().put("active", info != null)
+        if (info != null) {
+            obj.put("package", info.pkg)
+                .put("app", info.app)
+                .put("state", info.state)
+                .put("title", info.title ?: "")
+                .put("subtitle", info.subtitle ?: "")
+                .put("artist", info.artist ?: "")
+                .put("album", info.album ?: "")
+                .put("durationMs", info.durationMs)
+                .put("positionMs", info.positionMs)
+                .put("artKey", info.artKey)
+                .put("art", if (info.hasArt) "${baseUrl(session)}/api/nowplaying/art?v=${info.artKey}" else "")
+        }
+        return ok(obj)
+    }
+
+    private fun nowPlayingArt(): Response {
+        val none = { json(Response.Status.NOT_FOUND, JSONObject().put("ok", false).put("error", "nothing playing has artwork")) }
+        if (!NowPlaying.hasAccess(ctx)) return none()
+        val found: Pair<ByteArray?, String?> = try {
+            NowPlaying.art(ctx)
+        } catch (e: Exception) {
+            Pair(null, null)
+        }
+        val bytes = found.first
+        if (bytes != null) {
+            val r = newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
+            r.addHeader("Cache-Control", "max-age=300")
+            return r
+        }
+        val entry = found.second?.let { art.get(it) } ?: return none()
+        val r = newFixedLengthResponse(Response.Status.OK, entry.mime, FileInputStream(entry.file), entry.file.length())
+        r.addHeader("Cache-Control", "max-age=300")
+        return r
     }
 
     private fun wake(): Response {

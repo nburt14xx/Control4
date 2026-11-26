@@ -72,14 +72,19 @@ class MainActivity : Activity() {
         addButton(buttons, "Allow 'Display over other apps' (needed to launch shows while in background)") {
             openOverlaySettings()
         }
+        addButton(buttons, "Allow 'Notification access' (shows what is playing in Control4)") {
+            openNotificationAccess()
+        }
         addButton(buttons, "Test: read Continue Watching") { testContinue() }
+        addButton(buttons, "Test: what is playing now") { testNowPlaying() }
         keyButton = addButton(buttons, "Require API key") { toggleApiKey() }
         addButton(buttons, "Refresh status") { refresh() }
 
         root.addView(TextView(this).apply {
             text = "If a permission screen does not open on this device, grant it from a computer with adb:\n" +
                 "  adb shell pm grant dev.shieldbridge android.permission.READ_TV_LISTINGS\n" +
-                "  adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow"
+                "  adb shell appops set dev.shieldbridge SYSTEM_ALERT_WINDOW allow\n" +
+                "  adb shell cmd notification allow_listener dev.shieldbridge/dev.shieldbridge.MediaListener"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(Color.GRAY)
             setPadding(0, dp(16), 0, 0)
@@ -116,6 +121,7 @@ class MainActivity : Activity() {
         sb.append('\n')
         sb.append("TV listings:    ").append(if (WatchNextRepository.hasPermission(this)) "granted" else "NOT granted").append('\n')
         sb.append("Overlay perm:   ").append(if (Launcher.canLaunchFromBackground(this)) "granted" else "NOT granted").append('\n')
+        sb.append("Notif. access:  ").append(if (NowPlaying.hasAccess(this)) "granted" else "NOT granted (Now Playing shows the last launch)").append('\n')
         sb.append("API key:        ").append(if (key.isEmpty()) "not required" else key).append('\n')
         status.text = sb.toString()
         serviceButton.text = if (BridgeService.running) "Stop service" else "Start service"
@@ -142,6 +148,49 @@ class MainActivity : Activity() {
             .setMessage(if (items.isEmpty()) "Nothing yet. Watch part of something in Netflix, Prime, etc. and try again." else lines)
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    private fun testNowPlaying() {
+        if (!NowPlaying.hasAccess(this)) {
+            toast("Allow Notification access first")
+            return
+        }
+        val info = try {
+            NowPlaying.read(this)
+        } catch (e: Exception) {
+            toast("Could not read media sessions: ${e.message}")
+            return
+        }
+        val msg = if (info == null) {
+            "Nothing is playing or paused. Start something in Netflix, Prime, YouTube etc., then come back."
+        } else {
+            listOf(
+                "App:       ${info.app}",
+                "State:     ${info.state}",
+                "Title:     ${info.title ?: "(none)"}",
+                "Subtitle:  ${info.subtitle ?: info.artist ?: info.album ?: "(none)"}",
+                "Artwork:   ${if (info.hasArt) "yes" else "no"}",
+                "Position:  ${info.positionMs / 1000}s of ${info.durationMs / 1000}s",
+            ).joinToString("\n")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("What is playing")
+            .setMessage(msg)
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun openNotificationAccess() {
+        if (NowPlaying.hasAccess(this)) {
+            toast("Already granted")
+            return
+        }
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            toast("Turn on 'Shield Bridge: what's playing'")
+        } catch (e: Exception) {
+            toast("This device has no notification access screen; use the adb command shown below")
+        }
     }
 
     private fun toggleApiKey() {

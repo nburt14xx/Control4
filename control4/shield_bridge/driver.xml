@@ -7,7 +7,7 @@
   <model>Shield TV - Continue Watching</model>
   <created>11/18/2025 12:00 AM</created>
   <modified>11/20/2026 12:00 AM</modified>
-  <version>14</version>
+  <version>15</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -150,6 +150,15 @@
         <default>60</default>
         <readonly>false</readonly>
         <tooltip>How often the driver refreshes its cached list for programming (keypad buttons). 0 disables background refresh.</tooltip>
+      </property>
+      <property>
+        <name>Now Playing Refresh (s)</name>
+        <type>RANGED_INTEGER</type>
+        <minimum>0</minimum>
+        <maximum>60</maximum>
+        <default>5</default>
+        <readonly>false</readonly>
+        <tooltip>How often Now Playing asks the Shield what is playing while this source is selected. 0 checks only when Now Playing opens or after a launch.</tooltip>
       </property>
       <property>
         <name>Search</name>

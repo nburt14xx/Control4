@@ -12,7 +12,7 @@ control driver (Shield Control Device ID), which can live in any room.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.6.0"
+DRIVER_VERSION = "0.7.0"
 
 MSP_PROXY = 5001          -- media_service proxy binding: browse, search, poster Now Playing
 REMOTE_PROXY = 5002       -- media_player proxy binding: Control4's standard remote screen
@@ -709,13 +709,17 @@ function LaunchOnShield(target, display, roomId, onResult)
 	end
 
 	if (display) then
+		display.launchedAt = os.time()
 		Bridge.lastLaunched = display
+		Bridge.nowPlaying = nil   -- whatever played before is about to change
 		C4:SetVariable('LAST_LAUNCHED_TITLE', display.title or '')
 		C4:SetVariable('LAST_LAUNCHED_APP', display.app or '')
 		UpdateMediaInfo()
 		UpdateQueue()
 		UpdateDashboard()
 		C4:FireEvent('Item Launched')
+		SoonNowPlaying('nplaunch1', 5000)
+		SoonNowPlaying('nplaunch2', 12000)
 	end
 end
 
@@ -726,6 +730,7 @@ function DisplayForItem(item)
 		app = item.app or '',
 		art = item.art,
 		id = item.id,
+		package = item.package,
 	}
 end
 
@@ -746,7 +751,7 @@ end
 
 function LaunchPackage(pkg, roomId)
 	local app = Bridge.appsByPackage[pkg]
-	LaunchOnShield({ package = pkg }, { title = (app and app.label) or pkg, app = (app and app.label) or pkg, art = app and app.icon }, roomId)
+	LaunchOnShield({ package = pkg }, { title = (app and app.label) or pkg, app = (app and app.label) or pkg, art = app and app.icon, package = pkg }, roomId)
 end
 
 -- Launches the most recently watched CONTINUE row. Refreshes the list first so
@@ -838,15 +843,15 @@ function SendEvent(idBinding, navId, roomId, name, args)
 end
 
 function UpdateMediaInfo()
-	local last = Bridge.lastLaunched
+	local d = CurrentDisplay()
 	local args = {
-		TITLE = (last and last.title) or 'Continue Watching',
-		ALBUM = (last and last.subtitle) or '',
-		ARTIST = (last and last.app) or 'Shield',
+		TITLE = (d and trim(d.title) ~= '' and d.title) or 'Continue Watching',
+		ALBUM = (d and d.subtitle) or '',
+		ARTIST = (d and trim(d.app) ~= '' and d.app) or 'Shield',
 		GENRE = '',
 	}
-	if (last and last.art and last.art ~= '') then
-		args.IMAGEURL = C4:Base64Encode(last.art)
+	if (d and d.art and d.art ~= '') then
+		args.IMAGEURL = C4:Base64Encode(d.art)
 	end
 	C4:SendToProxy(MSP_PROXY, 'UPDATE_MEDIA_INFO', args, 'COMMAND', true)
 end
@@ -858,33 +863,218 @@ end
 DASH_PLAYBACK = 'Ok Play Pause SkipFwd Menu DpadOn'
 DASH_DPAD = 'Back Left Up Ok Down Right DpadOff'
 DashMode = DashMode or {}
+DashNavs = DashNavs or {}     -- [navId] = roomId, navigators that asked for the bar
 
+-- Play and Pause collapse to the one that makes sense once the Shield reports
+-- whether it is playing (live Now Playing below).
 function DashItems(navId)
 	local mode = (navId and DashMode[tostring(navId)]) or DashMode['*']
 	if (mode == 'dpad') then return DASH_DPAD end
-	return DASH_PLAYBACK
+	local items = DASH_PLAYBACK
+	if (Bridge.playState == 'playing') then
+		items = items:gsub('Play Pause', 'Pause')
+	elseif (Bridge.playState == 'paused') then
+		items = items:gsub('Play Pause', 'Play')
+	end
+	return items
+end
+
+function SendDashboard(navId, roomId)
+	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
 end
 
 function UpdateDashboard(navId, roomId)
-	-- a broadcast (source selected, show launched) puts every navigator back on playback
-	if (not navId) then DashMode = {} end
-	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
+	if (navId) then
+		DashNavs[tostring(navId)] = roomId or DashNavs[tostring(navId)] or ''
+	else
+		-- a broadcast (source selected, show launched) puts every navigator back on playback
+		DashMode = {}
+	end
+	SendDashboard(navId, roomId)
+end
+
+-- Play state changed: refresh each navigator in its own mode.
+function RefreshDashboards()
+	local any = false
+	for navId, roomId in pairs(DashNavs) do
+		any = true
+		SendDashboard(navId, roomId ~= '' and roomId or nil)
+	end
+	if (not any) then SendDashboard(nil, nil) end
+end
+
+function SetPlayState(state)
+	if (state ~= 'playing' and state ~= 'paused') then state = nil end
+	if (state == Bridge.playState) then return end
+	Bridge.playState = state
+	RefreshDashboards()
 end
 
 function SetDashMode(tParams, mode)
 	local navId = tParams.NAVID
 	if (navId) then
 		DashMode[tostring(navId)] = mode
+		DashNavs[tostring(navId)] = tParams.ROOMID or DashNavs[tostring(navId)] or ''
 	else
 		DashMode = { ['*'] = mode }
 	end
-	SendEvent(MSP_PROXY, navId, tParams.ROOMID, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
+	SendDashboard(navId, tParams.ROOMID)
 	if (navId and tParams.SEQ) then DataReceived(MSP_PROXY, navId, tParams.SEQ, '') end
+end
+
+-------------------------------------------------------------------------------
+-- Live Now Playing. The app reports what is playing from Android's media
+-- sessions (/api/nowplaying), so Now Playing follows a show however it was
+-- started: Control4, the Shield remote or inside the app. When the app reports
+-- nothing (Notification access not granted yet, an older app, or an app that
+-- publishes no session) Now Playing shows the last launch as before.
+-------------------------------------------------------------------------------
+
+LIVE_STATES = { playing = true, paused = true, buffering = true, seeking = true }
+LAUNCH_SETTLE_SECS = 20       -- after a launch, the previous app's session can linger
+PLAYBACK_KEYS = { PLAY = true, PAUSE = true, PLAYPAUSE = true, STOP = true, SKIP_FWD = true,
+	SKIP_REV = true, SCAN_FWD = true, SCAN_REV = true, ENTER = true }
+
+function NormText(s)
+	return (tostring(s or ''):lower():gsub('[^%w]', ''))
+end
+
+-- Loose match between a launched title and what an app reports.
+function SameTitle(a, b)
+	a, b = NormText(a), NormText(b)
+	if (a == '' or b == '') then return false end
+	return a == b or a:find(b, 1, true) ~= nil or b:find(a, 1, true) ~= nil
+end
+
+-- Apps fill the fields differently; the second line is the first one that
+-- says something the title does not.
+function LiveTitles(np)
+	local title = trim(np.title)
+	local subtitle = ''
+	for _, v in ipairs({ np.subtitle, np.artist, np.album }) do
+		v = trim(v)
+		if (v ~= '' and v ~= title) then
+			subtitle = v
+			break
+		end
+	end
+	return title, subtitle
+end
+
+-- What Now Playing shows: the live report when there is one, else the last launch.
+function CurrentDisplay()
+	local np = Bridge.nowPlaying
+	local last = Bridge.lastLaunched
+	if (not np) then return last end
+	if (last and last.package and np.package ~= last.package and
+		(os.time() - (last.launchedAt or 0)) < LAUNCH_SETTLE_SECS) then
+		return last
+	end
+	local title, subtitle = LiveTitles(np)
+	local d = { title = title, subtitle = subtitle, app = np.app or '', art = np.art, live = true }
+	if (last and (SameTitle(last.title, title) or SameTitle(last.title, subtitle))) then
+		d.id = last.id
+		if ((d.art or '') == '') then d.art = last.art end
+	end
+	if ((d.art or '') == '' and trim(np.package) ~= '') then
+		local base = BridgeBaseUrl()
+		if (base) then d.art = base .. '/api/icon/' .. np.package end
+	end
+	return d
+end
+
+function LiveKey(np)
+	if (not np) then return '' end
+	return table.concat({ tostring(np.package), tostring(np.title), tostring(np.subtitle),
+		tostring(np.artist), tostring(np.album), tostring(np.art) }, '|')
+end
+
+local function fmtClock(sec)
+	sec = math.floor(tonumber(sec) or 0)
+	local h, m, s = math.floor(sec / 3600), math.floor((sec % 3600) / 60), sec % 60
+	if (h > 0) then return string.format('%d:%02d:%02d', h, m, s) end
+	return string.format('%d:%02d', m, s)
+end
+
+function SetLiveNowPlaying(np)
+	if (np and (not LIVE_STATES[tostring(np.state)] or trim(np.title) == '')) then np = nil end
+	local changed = LiveKey(Bridge.nowPlaying) ~= LiveKey(np)
+	Bridge.nowPlaying = np
+	if (changed) then
+		UpdateMediaInfo()
+		UpdateQueue()
+	end
+	SetPlayState(np and np.state or nil)
+	local dur = np and tonumber(np.durationMs) or 0
+	if (dur > 0) then
+		local pos = tonumber(np.positionMs) or 0
+		SendEvent(MSP_PROXY, nil, nil, 'ProgressChanged', '<length>' .. math.floor(dur / 1000) .. '</length><offset>' ..
+			math.floor(pos / 1000) .. '</offset><label>' .. fmtClock(pos / 1000) .. ' / ' .. fmtClock(dur / 1000) .. '</label>')
+	end
+end
+
+function FetchNowPlaying()
+	if (not BridgeBaseUrl()) then return end
+	BridgeRequest('GET', '/api/nowplaying', nil, function(err, data, code)
+		if (err) then
+			local note = nil
+			if (code == 403) then
+				note = 'the Shield Bridge app cannot see what is playing yet: on the Shield, open Shield Bridge and allow Notification access'
+			elseif (code == 404) then
+				note = 'update the Shield Bridge app on the Shield to 0.2.0 or later to show what is playing'
+			end
+			if (note and Bridge.nowPlayingNote ~= note) then
+				Bridge.nowPlayingNote = note
+				print('Shield Bridge: ' .. note .. '. Until then Now Playing shows the last launched title.')
+			end
+			SetLiveNowPlaying(nil)
+			return
+		end
+		Bridge.nowPlayingNote = nil
+		SetLiveNowPlaying((type(data) == 'table' and data.active) and data or nil)
+	end)
+end
+
+function StartNowPlayingPoll()
+	KillTimer('np')
+	local secs = tonumber(Properties['Now Playing Refresh (s)']) or 5
+	FetchNowPlaying()
+	if (secs <= 0) then return end
+	Timer.np = C4:SetTimer(secs * 1000, function() FetchNowPlaying() end, true)
+end
+
+-- One check soon, e.g. after a launch or a play/pause press.
+function SoonNowPlaying(name, ms)
+	KillTimer(name)
+	Timer[name] = C4:SetTimer(ms, function()
+		Timer[name] = nil
+		FetchNowPlaying()
+	end)
+end
+
+-- Poll while either screen is the source in some room.
+function SetSelected(binding, tParams, on)
+	Bridge.selected = Bridge.selected or {}
+	local room = tParams and tParams.ROOMID
+	if (on) then
+		Bridge.selected[tostring(binding) .. ':' .. tostring(room or '')] = true
+	elseif (room) then
+		Bridge.selected[tostring(binding) .. ':' .. tostring(room)] = nil
+	else
+		for k, _ in pairs(Bridge.selected) do
+			if (k:find('^' .. tostring(binding) .. ':')) then Bridge.selected[k] = nil end
+		end
+	end
+	if (next(Bridge.selected) ~= nil) then
+		if (not Timer.np) then StartNowPlayingPoll() end
+	else
+		KillTimer('np')
+	end
 end
 
 function UpdateQueue(navId, roomId)
 	local x = {}
-	local last = Bridge.lastLaunched
+	local last = CurrentDisplay()
 	if (last) then
 		table.insert(x, HeaderXml('Now Playing'))
 		table.insert(x, '<item>' .. XMLTag('title', last.title) .. XMLTag('subtitle', last.subtitle or '') ..
@@ -1125,6 +1315,8 @@ function RFP.PlaybackMode(tParams, args, idBinding) SetDashMode(tParams, 'playba
 function RFP.GetDashboard(tParams, args, idBinding)
 	UpdateDashboard(tParams.NAVID, tParams.ROOMID)
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
+	-- someone is looking at Now Playing: make sure it is current
+	if (not Timer.np) then SoonNowPlaying('npview', 200) end
 end
 
 function RFP.GetQueue(tParams, args, idBinding)
@@ -1137,18 +1329,24 @@ function RFP.DEVICE_SELECTED(tParams, args, idBinding)
 	FetchContinue(nil)
 	UpdateMediaInfo()
 	UpdateDashboard()
+	SetSelected(MSP_PROXY, tParams, true)
 end
 
 RFP.ON = RFP.DEVICE_SELECTED
 
-function RFP.DEVICE_DESELECTED(tParams, args, idBinding) end
-function RFP.OFF(tParams, args, idBinding) end
+function RFP.DEVICE_DESELECTED(tParams, args, idBinding)
+	SetSelected(MSP_PROXY, tParams, false)
+end
+RFP.OFF = RFP.DEVICE_DESELECTED
 function RFP.SET_INPUT(tParams, args, idBinding) end
 function RFP.CONNECT_OUTPUT(tParams, args, idBinding) end
 function RFP.DISCONNECT_OUTPUT(tParams, args, idBinding) end
 function RFP.INPUT_OUTPUT_CHANGED(tParams, args, idBinding) end
 function RFP.DESTROY_NAVIGATOR(tParams, args, idBinding)
-	if (tParams.NAVID) then DashMode[tostring(tParams.NAVID)] = nil end
+	if (tParams.NAVID) then
+		DashMode[tostring(tParams.NAVID)] = nil
+		DashNavs[tostring(tParams.NAVID)] = nil
+	end
 end
 RFP.DESTROY_NAV = RFP.DESTROY_NAVIGATOR
 function RFP.SettingChanged(tParams, args, idBinding)
@@ -1181,15 +1379,20 @@ end
 function HandleRemoteProxy(strCommand, tParams)
 	if (strCommand == 'ON' or strCommand == 'DEVICE_SELECTED') then
 		if ((Properties['Wake on Select'] or 'Off') == 'On') then WakeShield() end
+		SetSelected(REMOTE_PROXY, tParams, true)
 		return
 	end
-	if (strCommand == 'OFF' or strCommand == 'DEVICE_DESELECTED') then return end
+	if (strCommand == 'OFF' or strCommand == 'DEVICE_DESELECTED') then
+		SetSelected(REMOTE_PROXY, tParams, false)
+		return
+	end
 	if (strCommand == 'HOME') then
 		RFP.HOME(tParams, {}, REMOTE_PROXY)
 		return
 	end
 	if (FORWARDED_COMMANDS[strCommand]) then
 		ForwardToShield(strCommand, tParams)
+		if (PLAYBACK_KEYS[strCommand]) then SoonNowPlaying('npquick', 1500) end
 		return
 	end
 	dbg('remote screen: unhandled ' .. strCommand)
@@ -1226,6 +1429,7 @@ function ReceivedFromProxy(idBinding, strCommand, tParams)
 
 	if (FORWARDED_COMMANDS[strCommand]) then
 		ForwardToShield(strCommand, tParams)
+		if (PLAYBACK_KEYS[strCommand]) then SoonNowPlaying('npquick', 1500) end
 		return
 	end
 
@@ -1591,7 +1795,7 @@ function LaunchShowOption(show, e, roomId)
 	if (show.showType == 'movie' and opt.videoLink and opt.videoLink ~= '') then url = opt.videoLink end
 	url = TweakServiceUrl(e.serviceId, url)
 	local display = { title = show.title or '', subtitle = e.appLabel or e.serviceName,
-		app = e.appLabel or e.serviceName, art = ShowPoster(show), id = 'search:' .. tostring(show.id) }
+		app = e.appLabel or e.serviceName, art = ShowPoster(show), id = 'search:' .. tostring(show.id), package = e.package }
 	local intentUri = UrlToAppIntent(url, e.package)
 	local target = intentUri and { intentUri = intentUri } or { package = e.package }
 	LaunchOnShield(target, display, roomId, function(ok, err)
@@ -1828,6 +2032,20 @@ function EC.Test_Connection(tParams)
 		if (perms.displayOverOtherApps == false) then
 			print('  -> allow "Display over other apps" or launches may be blocked while the app is in the background')
 		end
+		if (perms.notificationAccess == nil) then
+			print('  -> update the Shield Bridge app to 0.2.0 or later so Now Playing shows what is actually playing')
+		elseif (perms.notificationAccess == false) then
+			print('  -> allow "Notification access" in the Shield Bridge app so Now Playing shows what is actually playing')
+		else
+			BridgeRequest('GET', '/api/nowplaying', nil, function(e2, np)
+				if (e2) then return end
+				if (type(np) == 'table' and np.active) then
+					print(string.format('Now playing on the Shield: %s - %s (%s)', tostring(np.app), tostring(np.title), tostring(np.state)))
+				else
+					print('Now playing on the Shield: nothing')
+				end
+			end)
+		end
 	end)
 	FetchContinue(nil)
 	FetchApps(nil)
@@ -1922,6 +2140,10 @@ end
 
 function OPC.Refresh_Interval_s(value)
 	StartRefreshTimer()
+end
+
+function OPC.Now_Playing_Refresh_s(value)
+	if (Timer.np) then StartNowPlayingPoll() end
 end
 
 local function clearSearchCache()

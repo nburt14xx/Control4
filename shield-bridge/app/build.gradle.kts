@@ -15,8 +15,8 @@ android {
         // Stay on 33: Android 14's foreground-service-type requirement adds
         // nothing for a TV box and would complicate installs on older Shields.
         targetSdk = 33
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {

@@ -19,7 +19,7 @@ Try it from any browser on the LAN: `http://<shield-ip>:8765/api/status`.
   "port": 8765,
   "addresses": ["192.168.1.50"],
   "apiKeyRequired": false,
-  "permissions": { "readTvListings": true, "displayOverOtherApps": true },
+  "permissions": { "readTvListings": true, "displayOverOtherApps": true, "notificationAccess": true },
   "watchNextCount": 14,
   "watchNextError": "",
   "uptimeMs": 123456
@@ -116,6 +116,31 @@ curl 'http://192.168.1.50:8765/api/launch?url=https://www.youtube.com/watch?v=dQ
 Response `{"ok":true,"message":"launched","launched":"..."}` or `400` with an
 `error`. The message carries a warning when 'Display over other apps' is not
 granted, because Android then silently drops background launches.
+
+## GET /api/nowplaying
+
+What is playing now, from Android's media sessions, whichever way it was
+started (Control4, the Shield remote, inside the app). Needs the app's
+notification listener enabled (*Notification access*); otherwise `403`.
+
+```json
+{ "ok": true, "active": true, "package": "com.netflix.ninja", "app": "Netflix",
+  "state": "playing", "title": "Hide and Seek", "subtitle": "Severance",
+  "artist": "", "album": "", "durationMs": 3300000, "positionMs": 1200000,
+  "artKey": "1f3a9c", "art": "http://192.168.1.50:8765/api/nowplaying/art?v=1f3a9c" }
+```
+
+`state` is `playing`, `paused`, `buffering`, `seeking`, `stopped` or `other`.
+`active` is `false` when nothing is playing or paused. Apps fill the text fields
+differently: video apps usually put the episode or film in `title` and the
+show in `subtitle` or `artist`. `art` is empty when the app published no
+picture; `artKey` changes when the title or picture changes.
+
+## GET /api/nowplaying/art
+
+JPEG (at most 720 px) of the current session's artwork, or the image the app
+linked to. `404` when there is none. The `v` query parameter is only for
+cache busting.
 
 ## POST /api/wake
 
