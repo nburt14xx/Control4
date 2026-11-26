@@ -19,7 +19,22 @@ android {
         versionName = "0.2.0"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // A fixed debug key kept in the repo (standard debug passwords), so
+            // every CI build updates the installed app in place instead of
+            // needing an uninstall that also clears its permissions.
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
         }
