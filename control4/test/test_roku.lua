@@ -366,6 +366,93 @@ ExecuteCommand('LUA_ACTION', { ACTION = 'Test Connection' })
 respondTo('/query/device-info', 200, '<device-info><model-name>Roku Ultra</model-name><friendly-device-name>Theater Roku</friendly-device-name><software-version>14.6.0</software-version><ecp-setting-mode>enabled</ecp-setting-mode></device-info>')
 check(respondTo('/query/apps', 200, APPS_XML) ~= nil, 'Test Connection verifies a real command')
 
+------------------------------------------------------------------ Now Playing bar: D-pad mode and play state
+local function lastDash()
+	for i = #stub.proxyMessages, 1, -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged') then return m.params end
+	end
+end
+clear()
+Roku.playState = nil
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navA', ROOMID = '14', SEQ = '200' })
+eq(lastDash().EVTARGS, '<Items>Replay ScanRev Play Pause ScanFwd Home DpadOn</Items>', 'playback bar before the Roku reports a state')
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navB', ROOMID = '14', SEQ = '201' })
+ReceivedFromProxy(5001, 'DpadMode', { NAVID = 'navA', ROOMID = '14', SEQ = '202' })
+local d = lastDash()
+eq(d.EVTARGS, '<Items>Back Left Up Ok Down Right DpadOff</Items>', 'D-pad button swaps the bar to arrows')
+eq(d.NAVID, 'navA', 'only that navigator changes')
+eq(lastReply().SEQ, '202', 'D-pad press is answered')
+for _, k in ipairs({ 'LEFT', 'UP', 'DOWN', 'RIGHT', 'ENTER', 'CANCEL', 'HOME' }) do ReceivedFromProxy(5001, k, { NAVID = 'navA', ROOMID = '14' }) end
+local keys = {}
+for _, r in ipairs(take('/keypress/')) do table.insert(keys, (r.url:match('/keypress/(%w+)$'))) end
+eq(table.concat(keys, ' '), 'Left Up Down Right Select Back Home', 'D-pad bar keys go straight to the Roku')
+-- play state from the Roku collapses Play/Pause, each navigator in its own mode
+local before = #stub.proxyMessages
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="12" type="appl" version="5.1">Netflix</app></active-app>')
+respondTo('/query/media-player', 200, player('play'))
+local sent = {}
+for i = before + 1, #stub.proxyMessages do
+	local m = stub.proxyMessages[i]
+	if (m.command == 'SEND_EVENT' and m.params.NAME == 'DashboardChanged') then sent[m.params.NAVID] = m.params.EVTARGS end
+end
+eq(sent.navB, '<Items>Replay ScanRev Pause ScanFwd Home DpadOn</Items>', 'playing: only Pause shows')
+eq(sent.navA, '<Items>Back Left Up Ok Down Right DpadOff</Items>', 'a navigator in D-pad mode keeps its arrows')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="12" type="appl" version="5.1">Netflix</app></active-app>')
+before = #stub.proxyMessages
+respondTo('/query/media-player', 200, player('play'))
+local resent = 0
+for i = before + 1, #stub.proxyMessages do if (stub.proxyMessages[i].params.NAME == 'DashboardChanged') then resent = resent + 1 end end
+eq(resent, 0, 'no bar update while the state is unchanged')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="12" type="appl" version="5.1">Netflix</app></active-app>')
+respondTo('/query/media-player', 200, player('pause'))
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navB', SEQ = '203' })
+eq(lastDash().EVTARGS, '<Items>Replay ScanRev Play ScanFwd Home DpadOn</Items>', 'paused: only Play shows')
+ReceivedFromProxy(5001, 'PlaybackMode', { NAVID = 'navA', SEQ = '204' })
+eq(lastDash().EVTARGS, '<Items>Replay ScanRev Play ScanFwd Home DpadOn</Items>', 'playback button swaps back')
+ReceivedFromProxy(5001, 'DpadMode', { ROOMID = '14' })
+d = lastDash()
+check(d.NAVID == nil and d.ROOMS == '14' and d.EVTARGS:find('DpadOff', 1, true) ~= nil, 'press without NAVID flips the room')
+ReceivedFromProxy(5001, 'DEVICE_SELECTED', {})
+clear()
+ReceivedFromProxy(5001, 'GetDashboard', { NAVID = 'navA', SEQ = '205' })
+check(lastDash().EVTARGS:find('DpadOn', 1, true) ~= nil, 'selecting the source resets D-pad mode')
+ReceivedFromProxy(5001, 'DESTROY_NAVIGATOR', { NAVID = 'navA' })
+check(DashMode['navA'] == nil and DashNavs['navA'] == nil, 'closed navigator forgotten')
+ReceivedFromProxy(5001, 'DEVICE_DESELECTED', {})
+clear()
+
+------------------------------------------------------------------ Now Playing art follows the screen
+local function lastMedia()
+	for i = #stub.proxyMessages, 1, -1 do
+		local m = stub.proxyMessages[i]
+		if (m.command == 'UPDATE_MEDIA_INFO') then return m.params end
+	end
+end
+Roku.lastLaunched = { title = 'Severance', subtitle = 'Apple TV', app = 'Apple TV', art = 'https://img/sev.jpg', channelId = '551012', key = 'k' }
+Roku.activeApp = { id = '551012', name = 'Apple TV' }
+UpdateMediaInfo()
+eq(lastMedia().TITLE, 'Severance', 'launched title shows while its channel is on screen')
+eq(lastMedia().IMAGEURL, C4:Base64Encode('https://img/sev.jpg'), 'its poster is the thumbnail')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="12" type="appl" version="5.1">Netflix</app></active-app>')
+respondTo('/query/media-player', 200, player('play'))
+eq(lastMedia().TITLE, 'Netflix', 'switching channel drops the old poster')
+eq(lastMedia().IMAGEURL, C4:Base64Encode(ChannelIcon('12')), 'the new channel icon shows instead')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app>Roku</app></active-app>')
+respondTo('/query/media-player', 200, '<player error="false" state="close"/>')
+eq(lastMedia().TITLE, 'Roku Home', 'home screen shows as Roku Home')
+eq(lastMedia().IMAGEURL, nil, 'no stale poster on the home screen')
+PollNowPlaying()
+respondTo('/query/active-app', 200, '<active-app><app id="551012" type="appl" version="1.0">Apple TV</app></active-app>')
+respondTo('/query/media-player', 200, player('play'))
+eq(lastMedia().TITLE, 'Severance', 'back in the launched channel: its title returns')
+clear()
+
 ------------------------------------------------------------------ installed file name
 stub.driverFileName = 'roku_bridge.c4z'
 eq(DriverAsset('icons/x.png'), 'controller://driver/roku_bridge/icons/x.png', 'asset path from the canonical file name')
@@ -384,6 +471,20 @@ do
 	end
 	for icon in xml:gmatch('<IconId>(.-)</IconId>') do
 		find(xml, '<IconGroup id="' .. icon .. '">', 'icon group for ' .. icon)
+	end
+	local dashXml = xml:match('<Dashboard>(.-)</Dashboard>')
+	local ids = {}
+	for t in dashXml:gmatch('<Transport>(.-)</Transport>') do ids[t:match('<Id>(.-)</Id>')] = t end
+	for _, set in ipairs({ DASH_PLAYBACK, DASH_DPAD }) do
+		for id in set:gmatch('%S+') do
+			check(ids[id] ~= nil, 'transport ' .. id .. ' is defined in driver.xml')
+			local icon = ids[id] and ids[id]:match('<IconId>(.-)</IconId>')
+			if (icon) then
+				local f = io.open('control4/roku_bridge/icons/' .. icon .. '/' .. icon .. '_70.png', 'rb')
+				check(f ~= nil, 'icon file exists for ' .. id)
+				if (f) then f:close() end
+			end
+		end
 	end
 end
 

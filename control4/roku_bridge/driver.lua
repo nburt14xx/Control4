@@ -12,7 +12,7 @@ network setting must be Enabled or Permissive.
 Lua 5.1 (Control4 DriverWorks).
 --]]
 
-DRIVER_VERSION = "0.1.1"
+DRIVER_VERSION = "0.2.0"
 
 MSP_PROXY = 5001
 
@@ -606,6 +606,9 @@ function SmartPlayPause(want)
 		if (want == 'play' and state == 'play') then return end
 		if (want == 'pause' and state == 'pause') then return end
 		KeyPress('Play')
+		-- the player needs a moment to change state; then update the bar
+		KillTimer('npquick')
+		Timer.npquick = C4:SetTimer(1500, function() Timer.npquick = nil PollNowPlaying() end)
 	end)
 end
 
@@ -1026,13 +1029,24 @@ function SendEvent(idBinding, navId, roomId, name, args)
 	C4:SendToProxy(idBinding, 'SEND_EVENT', { NAVID = navId, ROOMS = roomId, NAME = name, EVTARGS = args or '' }, 'COMMAND')
 end
 
-function UpdateMediaInfo()
+-- The launched title's poster, but only while its channel is still on screen.
+-- Once the Roku moves to another channel or the home screen, Now Playing shows
+-- that channel (name and icon) instead, so the thumbnail never shows something
+-- that is no longer playing.
+function CurrentTitle()
 	local last = Roku.lastLaunched
 	local active = Roku.activeApp
-	-- show the launched title only while its channel is still the active one
-	if (last and active and active.id and last.channelId and tostring(active.id) ~= tostring(last.channelId)) then
-		last = nil
+	if (not last or not active) then return last end
+	if (not active.id or not last.channelId or tostring(active.id) ~= tostring(last.channelId)) then
+		return nil
 	end
+	return last
+end
+
+function UpdateMediaInfo()
+	local last = CurrentTitle()
+	local active = Roku.activeApp
+	if (active and not active.id) then active = { name = 'Roku Home' } end
 	local args = {
 		TITLE = (last and last.title) or (active and active.name) or 'Roku',
 		ALBUM = (last and last.subtitle) or '',
@@ -1044,13 +1058,74 @@ function UpdateMediaInfo()
 	C4:SendToProxy(MSP_PROXY, 'UPDATE_MEDIA_INFO', args, 'COMMAND', true)
 end
 
+-- Now Playing transport bar. Two sets share it: playback, and a D-pad set for
+-- moving around the Roku's menus with the poster still on screen. The last
+-- button of each set flips to the other. The mode is kept per navigator (key
+-- '*' when a press came without one, which flips the whole room). Play and
+-- Pause collapse to the one that makes sense once the Roku reports its state.
+DASH_PLAYBACK = 'Replay ScanRev Play Pause ScanFwd Home DpadOn'
+DASH_DPAD = 'Back Left Up Ok Down Right DpadOff'
+DashMode = DashMode or {}
+DashNavs = DashNavs or {}     -- [navId] = roomId, navigators showing Now Playing
+
+function DashItems(navId)
+	local mode = (navId and DashMode[tostring(navId)]) or DashMode['*']
+	if (mode == 'dpad') then return DASH_DPAD end
+	local items = DASH_PLAYBACK
+	if (Roku.playState == 'play') then
+		items = items:gsub('Play Pause', 'Pause')
+	elseif (Roku.playState == 'pause') then
+		items = items:gsub('Play Pause', 'Play')
+	end
+	return items
+end
+
+function SendDashboard(navId, roomId)
+	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>' .. DashItems(navId) .. '</Items>')
+end
+
 function UpdateDashboard(navId, roomId)
-	SendEvent(MSP_PROXY, navId, roomId, 'DashboardChanged', '<Items>ScanRev Play Pause ScanFwd Replay</Items>')
+	if (navId) then
+		DashNavs[tostring(navId)] = roomId or DashNavs[tostring(navId)] or ''
+	else
+		-- a broadcast (source selected, title launched) puts every navigator back on playback
+		DashMode = {}
+	end
+	SendDashboard(navId, roomId)
+end
+
+-- Play state changed: refresh each navigator in its own mode.
+function RefreshDashboards()
+	local any = false
+	for navId, roomId in pairs(DashNavs) do
+		any = true
+		SendDashboard(navId, roomId ~= '' and roomId or nil)
+	end
+	if (not any) then SendDashboard(nil, nil) end
+end
+
+function SetDashMode(tParams, mode)
+	local navId = tParams.NAVID
+	if (navId) then
+		DashMode[tostring(navId)] = mode
+		DashNavs[tostring(navId)] = tParams.ROOMID or DashNavs[tostring(navId)] or ''
+	else
+		DashMode = { ['*'] = mode }
+	end
+	SendDashboard(navId, tParams.ROOMID)
+	if (navId and tParams.SEQ) then DataReceived(MSP_PROXY, navId, tParams.SEQ, '') end
+end
+
+function SetPlayState(state)
+	if (state ~= 'play' and state ~= 'pause') then state = nil end
+	if (state == Roku.playState) then return end
+	Roku.playState = state
+	RefreshDashboards()
 end
 
 function UpdateQueue(navId, roomId)
 	local x = {}
-	local last = Roku.lastLaunched
+	local last = CurrentTitle()
 	if (last) then
 		table.insert(x, HeaderXml('Now Playing'))
 		table.insert(x, '<item>' .. XMLTag('title', last.title) .. XMLTag('subtitle', last.subtitle or '') ..
@@ -1083,14 +1158,18 @@ function PollNowPlaying()
 		if (err) then return end
 		local attrs, name = tostring(body):match('<app([^>]*)>(.-)</app>')
 		local id = attrs and attrs:match('id="([^"]+)"') or nil
-		local prev = Roku.activeApp and Roku.activeApp.name
+		local prev = Roku.activeApp and tostring(Roku.activeApp.id) .. '|' .. tostring(Roku.activeApp.name)
 		Roku.activeApp = { id = id, name = XMLDecode(name or 'Roku') }
 		C4:SetVariable('ACTIVE_APP', Roku.activeApp.name)
-		if (prev ~= Roku.activeApp.name) then UpdateMediaInfo() end
+		if (prev ~= tostring(id) .. '|' .. Roku.activeApp.name) then
+			UpdateMediaInfo()
+			UpdateQueue()
+		end
 	end)
 	Ecp('GET', '/query/media-player', function(err, body)
 		if (err) then return end
 		body = tostring(body)
+		SetPlayState(body:match('<player[^>]-state="([^"]+)"'))
 		local pos = tonumber(body:match('<position>(%d+)')) or 0
 		local dur = tonumber(body:match('<duration>(%d+)')) or 0
 		if (dur > 0) then
@@ -1315,6 +1394,9 @@ function RFP.SearchHere(tParams, args, idBinding)
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '<NextScreen>SearchResultsScreen</NextScreen>')
 end
 
+function RFP.DpadMode(tParams, args, idBinding) SetDashMode(tParams, 'dpad') end
+function RFP.PlaybackMode(tParams, args, idBinding) SetDashMode(tParams, 'playback') end
+
 function RFP.GetDashboard(tParams, args, idBinding)
 	UpdateDashboard(tParams.NAVID, tParams.ROOMID)
 	DataReceived(idBinding, tParams.NAVID, tParams.SEQ, '')
@@ -1350,8 +1432,13 @@ function RFP.SET_INPUT() end
 function RFP.CONNECT_OUTPUT() end
 function RFP.DISCONNECT_OUTPUT() end
 function RFP.INPUT_OUTPUT_CHANGED() end
-function RFP.DESTROY_NAVIGATOR() end
-function RFP.DESTROY_NAV() end
+function RFP.DESTROY_NAVIGATOR(tParams)
+	if (tParams and tParams.NAVID) then
+		DashMode[tostring(tParams.NAVID)] = nil
+		DashNavs[tostring(tParams.NAVID)] = nil
+	end
+end
+RFP.DESTROY_NAV = RFP.DESTROY_NAVIGATOR
 
 function ParseArgs(tParams)
 	local args = {}

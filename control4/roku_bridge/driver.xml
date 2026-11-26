@@ -7,7 +7,7 @@
   <model>Roku players and TVs - Search and Control</model>
   <created>11/19/2026 12:00 AM</created>
   <modified>11/19/2026 12:00 AM</modified>
-  <version>2</version>
+  <version>3</version>
   <control>lua_gen</control>
   <controlmethod>ip</controlmethod>
   <driver>DriverWorks</driver>
@@ -573,6 +573,21 @@
           <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_ff/nav_ff_130.png</Icon>
           <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_ff/nav_ff_140.png</Icon>
         </IconGroup>
+        <IconGroup id="nav_dpad">
+          <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_20.png</Icon>
+          <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_30.png</Icon>
+          <Icon width="40" height="40">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_40.png</Icon>
+          <Icon width="50" height="50">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_50.png</Icon>
+          <Icon width="60" height="60">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_60.png</Icon>
+          <Icon width="70" height="70">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_70.png</Icon>
+          <Icon width="80" height="80">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_80.png</Icon>
+          <Icon width="90" height="90">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_90.png</Icon>
+          <Icon width="100" height="100">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_100.png</Icon>
+          <Icon width="110" height="110">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_110.png</Icon>
+          <Icon width="120" height="120">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_120.png</Icon>
+          <Icon width="130" height="130">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_130.png</Icon>
+          <Icon width="140" height="140">controller://driver/roku_bridge/icons/nav_dpad/nav_dpad_140.png</Icon>
+        </IconGroup>
         <IconGroup id="nav_playpause">
           <Icon width="20" height="20">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_20.png</Icon>
           <Icon width="30" height="30">controller://driver/roku_bridge/icons/nav_playpause/nav_playpause_30.png</Icon>
@@ -1096,6 +1111,96 @@
         </Action>
       </Actions>
       <Dashboard>
+        <Transport>
+          <Id>DpadOn</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>D-pad</Name>
+          <IconId>nav_dpad</IconId>
+          <ReleaseCommand>
+            <Name>DpadMode</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>DpadOff</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Playback</Name>
+          <IconId>nav_playpause</IconId>
+          <ReleaseCommand>
+            <Name>PlaybackMode</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Home</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Home</Name>
+          <IconId>nav_home</IconId>
+          <ReleaseCommand>
+            <Name>HOME</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Ok</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>OK</Name>
+          <IconId>nav_ok</IconId>
+          <ReleaseCommand>
+            <Name>ENTER</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Back</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Back</Name>
+          <IconId>nav_back</IconId>
+          <ReleaseCommand>
+            <Name>CANCEL</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Left</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Left</Name>
+          <IconId>nav_left</IconId>
+          <ReleaseCommand>
+            <Name>LEFT</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Up</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Up</Name>
+          <IconId>nav_up</IconId>
+          <ReleaseCommand>
+            <Name>UP</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Down</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Down</Name>
+          <IconId>nav_down</IconId>
+          <ReleaseCommand>
+            <Name>DOWN</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
+        <Transport>
+          <Id>Right</Id>
+          <ButtonType>CUSTOM</ButtonType>
+          <Name>Right</Name>
+          <IconId>nav_right</IconId>
+          <ReleaseCommand>
+            <Name>RIGHT</Name>
+            <Type>PROTOCOL</Type>
+          </ReleaseCommand>
+        </Transport>
         <Transport>
           <Id>ScanRev</Id>
           <ButtonType>CUSTOM</ButtonType>

@@ -49,3 +49,16 @@ network (port 8060); nothing is installed on the Roku.
 
 Tests: `lua5.1 control4/test/test_roku.lua`. Package:
 `python3 control4/tools/build_c4z.py --driver roku_bridge`.
+
+### Now Playing
+
+- The bar has Instant Replay, Rewind, Play or Pause (only the one that
+  applies, read from the Roku), Fast Forward, Home and **D-pad**. D-pad swaps
+  the bar to Back, Left, Up, OK, Down, Right for driving the Roku's menus
+  without leaving Now Playing; the last button swaps back. Each touch screen
+  keeps its own mode; selecting the source or launching a title resets it.
+- The thumbnail is the poster of the title launched from Control4 while that
+  channel stays on screen. Another channel shows its name and icon; the home
+  screen shows "Roku Home". The Roku does not report the playing title, so
+  something started with the Roku's own remote shows its channel only.
+

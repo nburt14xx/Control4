@@ -332,8 +332,7 @@ def driver_icons(name, accent):
         save(emblem(64, "dpad", True), os.path.join(icons, "remote_lg.png"))
     # On-screen control glyphs
     kinds = ["up", "down", "left", "right", "ok", "back", "home", "playpause", "search", "play", "pause", "rew", "ff", "menu"]
-    if name == "shield_bridge":
-        kinds.append("dpad")   # transport-bar toggle into D-pad mode
+    kinds.append("dpad")   # transport-bar toggle into D-pad mode
     for kind in kinds:
         nm = "nav_" + kind
         for sz in TAB_SIZES:
